@@ -1,9 +1,4 @@
 .pdf
-.json
 .epub
+.js
 .mobi
-jqfn.js
-header.js
-headfoot.js
-headfoot_prev.js
-jqfns.js

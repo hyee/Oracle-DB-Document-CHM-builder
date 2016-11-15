@@ -77,7 +77,7 @@ function builder.getContent(self,file)
 	--print(1)
 	local title=txt:match([[<meta name="doctitle" content="([^"]+)"]])
 	if not title then title=txt:match("<title>(.-)</title>") end
-	title=title:gsub("%s*&reg;?%s*"," ")
+	title=title:gsub("%s*&reg;?%s*"," "):gsub("([\1-\127\194-\244][\128-\193])", '')
 	local root=html.parse(txt):select("div[class^='IND']")
 	return root and root[1] or {} ,title
 end
@@ -90,11 +90,7 @@ function builder.buildIdx(self)
 		<meta content="Microsoft HTML Help Workshop 4.1" name="GENERATOR">
 		<!-- Sitemap 1.0 -->
 	  </HEAD>
-	  <BODY><OBJECT type="text/site properties">
-		  <param name="Window Styles" value="0x800025">
-		  <param name="comment" value="title:Online Help">
-     	  <param name="comment" value="base:index.htm">
-		</OBJECT><UL>]]}
+	  <BODY><UL>]]}
 	local function append(level,txt)
 		hhk[#hhk+1]='\n    '..string.rep("  ",level).. txt
 	end
@@ -159,10 +155,7 @@ end
 
 function builder.buildJson(self)
 	local f=io.open(self.json)
-	if not f then return end
-	local txt=f:read("*a")
-	f:close() 
-	local root=json.decode(txt)
+	self.hhc=self.root..self.name..".hhc"
 	local hhc={
     [[<HTML><HEAD>
 		<meta content="Microsoft HTML Help Workshop 4.1" name="GENERATOR">
@@ -177,13 +170,37 @@ function builder.buildJson(self)
 	local function append(level,txt)
 		hhc[#hhc+1]='\n    '..string.rep("  ",level*2).. txt
 	end
+	if not f then
+		local title,href
+		if self.toc:lower():find('\\nav\\') then 
+			self.topic='All Books for Oracle Database Online Documentation Library'
+			href='portal_booklist.htm'
+		else
+			local _,title=self:getContent(self.toc)
+			href='toc.htm'
+			self.topic=title
+		end
+		append(1,"<LI><OBJECT type=\"text/sitemap\">")
+		append(2,([[<param name="Name"  value="%s">]]):format(self.topic))
+		append(2,([[<param name="Local" value="%s">]]):format(self.dir..href))
+		append(1,"</OBJECT></LI>")
+		append(0,"</UL></BODY></HTML>")
+		self.save(self.hhc,table.concat(hhc))
+		return 
+	end
+	local txt=f:read("*a")
+	f:close() 
+	local root=json.decode(txt)
+	
+	
+	local last_node
 	local function travel(node,level)
 		if node.t then
 			node.t=node.t:gsub("([\1-\127\194-\244][\128-\193])", '')
+			last_node=node.h
 			append(level+1,"<LI><OBJECT type=\"text/sitemap\">")
 			append(level+2,([[<param name="Name"  value="%s">]]):format(node.t))
 			append(level+2,([[<param name="Local" value="%s">]]):format(self.dir..'\\'..node.h))
-
 			if node.c then
 				append(level+1,"</OBJECT><UL>") 
 				for index,child in ipairs(node.c) do
@@ -200,13 +217,22 @@ function builder.buildJson(self)
 		end
 	end
 	travel(root.docs[1],0)
+	if last_node and not last_node:lower():find('^index%.htm') then
+		local f=io.open(self.idx,'r')
+		if f then
+			f:close()
+			append(1,"<LI><OBJECT type=\"text/sitemap\">")
+			append(2,[[<param name="Name"  value="Index">]])
+			append(2,([[<param name="Local" value="%s">]]):format(self.dir..'\\index.htm'))
+			append(1,"</OBJECT></LI>") 
+		end
+	end
 	append(0,"</UL></BODY></HTML>")
-	self.hhc=self.name..".hhc"
-	self.save(self.root..self.hhc,table.concat(hhc))
+	
+	self.save(self.hhc,table.concat(hhc))
 	self.topic=root.docs[1].t
 	return self.topic
 end
-
 
 function builder:listdir(this,dir,base,level,callback)
 	local fd=sys.handle()
@@ -224,6 +250,7 @@ function builder:listdir(this,dir,base,level,callback)
 		end)
 
 		txt=txt:gsub('"('..prefix..[[[^"]-)([^"\/]+.html?[^"]*)"]],function(s,e)
+			if e:find('.css',1,true) or e:find('.js',1,true) then return '"'..s..e..'"' end
 			local n=prefix:gsub("%%",""):len()
 			local t=s:sub(n+1)
 			if t:find("^nav/") then 
@@ -301,41 +328,70 @@ end
 
 function BuildJobs(parallel)
 	local source,target=source_doc_root,target_doc_root
-	local lst={"toc","index","title"}
+	local lst={"toc.htm","index.htm","title.htm"}
 	local tasks={}
 	local fd=sys.handle()
 	local i=1
 	for name,is_dir in sys.dir(source) do
-		if is_dir and name~="nav" then
+		local found=false
+		if is_dir then
 			for n,isdir in sys.dir(source..name.."\\") do
 				if isdir then
 					local targetroot='"'..target..name.."\\"..n..'"'
 					local sourceroot=source..name.."\\"..n.."\\"
-					os.execute("mkdir "..targetroot)
-					os.execute('xcopy "'..sourceroot..'*" '..targetroot.." /E/Y/Q  /EXCLUDE:exclude.txt")
-					for i=1,3 do
-						local f=sourceroot..lst[i]..".htm"
+					local flag=false
+					for j=1,3 do
+						local f=sourceroot..lst[j]
 						if not fd:open(f,"r") then
 							print(f,"not exists")
+						elseif j<=2 then
+							found,flag=true,true
 						end
 						fd:close()
 					end
+					if flag then
+						os.execute("mkdir "..targetroot)
+						os.execute('xcopy "'..sourceroot..'*" '..targetroot.." /E/Y/Q  /EXCLUDE:exclude.txt")
+						o=builder:new(targetroot:sub(2,-2),1)
+						local idx=math.fmod(i,parallel)+1
+						if not tasks[idx] then tasks[idx]={} end
+						tasks[idx][#tasks[idx]+1]='"'..chm_builder..'" "'..target..o.name..'.hhp"'
+						i=i+1
+					end
+				end
+			end
+			if not found then
+				local targetroot='"'..target..name..'"'
+				local sourceroot=source..name.."\\"
+				for j=1,3 do
+					local f=sourceroot..lst[j]
+					if not fd:open(f,"r") then
+						print(f,"not exists")
+					end
+					fd:close()
+				end
+				os.execute("mkdir "..targetroot)
+				os.execute('xcopy "'..sourceroot..'*" '..targetroot.." /E/Y/Q  /EXCLUDE:exclude.txt")
+				if name~='dcommon' then 
 					o=builder:new(targetroot:sub(2,-2),1)
 					local idx=math.fmod(i,parallel)+1
 					if not tasks[idx] then tasks[idx]={} end
-					tasks[idx][#tasks[idx]+1]='"'..chm_builder..'" "'..target..o.name..'.hhp"'					i=i+1
+					tasks[idx][#tasks[idx]+1]='"'..chm_builder..'" "'..target..o.name..'.hhp"'
+					i=i+1
 				end
 			end
 		end
 	end
-	
+	os.execute('copy /Y html5.css '..target..'nav\\css & del /Q '..target..'dcommon\\js\\*')
 	for i=1,#tasks do
 		io.open(i..".bat","w"):write(table.concat(tasks[i],"\n").."\npause")
 	end
+	print('\nPlease run 1.bat -- 6.bat simulatenously to build the CHMs in parallel..')
 end
 
 
-function BuildBatch(dir)
+function BuildBatch()
+	local dir=target_doc_root
 	local hhc=[[
 	
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
@@ -438,8 +494,8 @@ function parseErrorMsg()
 	hhk[#hhk+1]="</UL></BODY></HTML>"
 	io.open("F:\\abc\\server.112.e10880.hhk","w"):write(table.concat(hhk,'\n'))
 end
-builder:new([[server.112\e11013]],1)
+builder:new([[nav]],1)
 --BuildJobs(6)
---BuildBatch("D:\\BM\\newdoc\\")
+--BuildBatch()
 --parseErrorMsg()
 --builder.listdir(builder.listdir,"f:\\abc\\nav\\","nav\\",1)
