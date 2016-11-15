@@ -203,7 +203,6 @@ function builder.buildJson(self)
 	append(0,"</UL></BODY></HTML>")
 	self.hhc=self.name..".hhc"
 	self.save(self.root..self.hhc,table.concat(hhc))
-	self.save(self.root..self.hhc..".txt",table.concat(hhc))
 	self.topic=root.docs[1].t
 	return self.topic
 end
@@ -219,6 +218,7 @@ function builder:listdir(this,dir,base,level,callback)
 		fd:close()
 		txt,count=txt:gsub("\n(%s+parent%.document%.title)","\n//%1"):gsub("&amp;&amp;","&&")
 		txt=txt:gsub('<header>.-</header>','')
+		txt=txt:gsub('<a href="#BEGIN".-</a>','')
 		txt=txt:gsub('href="'..prefix..'([^"]+)%.pdf"([^>]*)>PDF<',function(s,d)
 			return [[href="javascript:location.href ='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..[[.chm'"]]..d..'>CHM<'
 		end)
@@ -236,7 +236,7 @@ function builder:listdir(this,dir,base,level,callback)
 		end)
 
 		if level==2 then
-			txt=txt:gsub([["%.%./([^%.][^"]-)([^"\/]+.html[^"]*)"]],function(s,e)
+			txt=txt:gsub([["%.%./([^%.][^"]-)([^"\/]+.html?[^"]*)"]],function(s,e)
 				t=self.parent..'/'..s
 				return '"MS-ITS:'..t:gsub("[\\/]+",".").."chm::/"..t:gsub("[\\/]+","/")..e..'"'
 			end)
@@ -290,7 +290,6 @@ function builder.buildHhp(self)
 	local _,depth=self.dir:gsub('[\\/]','')
 	self:listdir(self.listdir,self.full_dir,self.dir..'\\',self.depth,append)
 	self.save(self.root..self.name..".hhp",table.concat(hhp))
-	self.save(self.root..self.name..".hhp.txt",table.concat(hhp))
 end
 
 function builder:startBuild()
@@ -439,8 +438,8 @@ function parseErrorMsg()
 	hhk[#hhk+1]="</UL></BODY></HTML>"
 	io.open("F:\\abc\\server.112.e10880.hhk","w"):write(table.concat(hhk,'\n'))
 end
---builder:new([[server.112\e11013]],1)
-BuildJobs(6)
+builder:new([[server.112\e11013]],1)
+--BuildJobs(6)
 --BuildBatch("D:\\BM\\newdoc\\")
 --parseErrorMsg()
 --builder.listdir(builder.listdir,"f:\\abc\\nav\\","nav\\",1)
