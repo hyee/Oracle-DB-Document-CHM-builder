@@ -1,4 +1,5 @@
 .pdf
 .epub
-.js
+\js\
+\fancybox\
 .mobi

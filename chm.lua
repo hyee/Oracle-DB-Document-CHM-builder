@@ -205,6 +205,16 @@ function builder.buildJson(self)
 				for index,child in ipairs(node.c) do
 					travel(child,level+1)
 				end
+				if level==0 and last_node and not last_node:lower():find('^index%.htm') then
+					local f=io.open(self.idx,'r')
+					if f then
+						f:close()
+						append(1,"<LI><OBJECT type=\"text/sitemap\">")
+						append(2,[[<param name="Name"  value="Index">]])
+						append(2,([[<param name="Local" value="%s">]]):format(self.dir..'\\index.htm'))
+						append(1,"</OBJECT></LI>") 
+					end
+				end
 				append(level+1,"</UL></LI>") 
 			else
 				append(level+1,"</OBJECT></LI>") 
@@ -214,18 +224,10 @@ function builder.buildJson(self)
 				travel(child,level+1)
 			end
 		end
+
 	end
 	travel(root.docs[1],0)
-	if last_node and not last_node:lower():find('^index%.htm') then
-		local f=io.open(self.idx,'r')
-		if f then
-			f:close()
-			append(1,"<LI><OBJECT type=\"text/sitemap\">")
-			append(2,[[<param name="Name"  value="Index">]])
-			append(2,([[<param name="Local" value="%s">]]):format(self.dir..'\\index.htm'))
-			append(1,"</OBJECT></LI>") 
-		end
-	end
+	
 	append(0,"</UL></BODY></HTML>")
 	self.save(self.hhc,table.concat(hhc))
 	self.topic=root.docs[1].t
@@ -242,7 +244,7 @@ function builder:listdir(this,dir,base,level,callback)
 		fd:close()
 		txt,count=txt:gsub("\n(%s+parent%.document%.title)","\n//%1"):gsub("&amp;&amp;","&&")
 		txt=txt:gsub('<header>.-</header>','')
-		txt=txt:gsub('<a href="#BEGIN".-</a>','')
+		txt=txt:gsub('%s*<a href="#BEGIN".-</a>%s*','')
 		txt=txt:gsub('href="'..prefix..'([^"]+)%.pdf"([^>]*)>PDF<',function(s,d)
 			return [[href="javascript:location.href ='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..[[.chm'"]]..d..'>CHM<'
 		end)
@@ -385,7 +387,7 @@ function BuildJobs(parallel)
 			end
 		end
 	end
-	os.execute('copy /Y html5.css '..target..'nav\\css & del /Q '..target..'dcommon\\js\\*')
+	os.execute('copy /Y html5.css '..target..'nav\\css')
 	for i=1,#tasks do
 		io.open(i..".bat","w"):write(table.concat(tasks[i],"\n").."\npause")
 	end
@@ -497,7 +499,7 @@ function parseErrorMsg()
 	hhk[#hhk+1]="</UL></BODY></HTML>"
 	io.open("F:\\abc\\server.112.e10880.hhk","w"):write(table.concat(hhk,'\n'))
 end
---builder:new([[nav]],1)
+--builder:new([[appdev.112\e25519]],1)
 BuildJobs(6)
 --BuildBatch()
 --parseErrorMsg()
