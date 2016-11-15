@@ -154,7 +154,6 @@ function builder.buildIdx(self)
 end
 
 function builder.buildJson(self)
-	local f=io.open(self.json)
 	self.hhc=self.root..self.name..".hhc"
 	local hhc={
     [[<HTML><HEAD>
@@ -170,6 +169,8 @@ function builder.buildJson(self)
 	local function append(level,txt)
 		hhc[#hhc+1]='\n    '..string.rep("  ",level*2).. txt
 	end
+
+	local f=io.open(self.json)
 	if not f then
 		local title,href
 		if self.toc:lower():find('\\nav\\') then 
@@ -182,7 +183,7 @@ function builder.buildJson(self)
 		end
 		append(1,"<LI><OBJECT type=\"text/sitemap\">")
 		append(2,([[<param name="Name"  value="%s">]]):format(self.topic))
-		append(2,([[<param name="Local" value="%s">]]):format(self.dir..href))
+		append(2,([[<param name="Local" value="%s">]]):format(self.dir..'\\'..href))
 		append(1,"</OBJECT></LI>")
 		append(0,"</UL></BODY></HTML>")
 		self.save(self.hhc,table.concat(hhc))
@@ -191,8 +192,6 @@ function builder.buildJson(self)
 	local txt=f:read("*a")
 	f:close() 
 	local root=json.decode(txt)
-	
-	
 	local last_node
 	local function travel(node,level)
 		if node.t then
@@ -228,7 +227,6 @@ function builder.buildJson(self)
 		end
 	end
 	append(0,"</UL></BODY></HTML>")
-	
 	self.save(self.hhc,table.concat(hhc))
 	self.topic=root.docs[1].t
 	return self.topic
@@ -373,8 +371,13 @@ function BuildJobs(parallel)
 				os.execute("mkdir "..targetroot)
 				os.execute('xcopy "'..sourceroot..'*" '..targetroot.." /E/Y/Q  /EXCLUDE:exclude.txt")
 				if name~='dcommon' then 
-					o=builder:new(targetroot:sub(2,-2),1)
-					local idx=math.fmod(i,parallel)+1
+					local o=builder:new(targetroot:sub(2,-2),1)
+					local idx
+					if name=='nav' then 
+						idx=parallel+1
+					else
+						idx=math.fmod(i,parallel)+1
+					end
 					if not tasks[idx] then tasks[idx]={} end
 					tasks[idx][#tasks[idx]+1]='"'..chm_builder..'" "'..target..o.name..'.hhp"'
 					i=i+1
@@ -494,8 +497,8 @@ function parseErrorMsg()
 	hhk[#hhk+1]="</UL></BODY></HTML>"
 	io.open("F:\\abc\\server.112.e10880.hhk","w"):write(table.concat(hhk,'\n'))
 end
-builder:new([[nav]],1)
---BuildJobs(6)
+--builder:new([[nav]],1)
+BuildJobs(6)
 --BuildBatch()
 --parseErrorMsg()
 --builder.listdir(builder.listdir,"f:\\abc\\nav\\","nav\\",1)
