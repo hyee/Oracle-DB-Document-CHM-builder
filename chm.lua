@@ -1,5 +1,4 @@
-require "lom"
-require "base"
+
 require "sys"
 require "math"
 local html=require("htmlparser")
@@ -25,9 +24,10 @@ end
 
 local jcount={}
 
-local xmlParser={}
-function xmlParser.new(self,dir,build)
+local builder={}
+function builder.new(self,dir,build)
 	dir=dir:gsub('[\\/]+','\\'):gsub("\\$","")
+	if dir:find(target_doc_root,1,true)==1 then dir=dir:sub(#target_doc_root+1) end
 	local _,depth,parent,folder=dir:gsub('[\\/]','')
 	depth=depth and depth+1 or 1
 	if depth>1 then
@@ -59,18 +59,16 @@ function xmlParser.new(self,dir,build)
 	setmetatable(o,self)
 	self.__index=self
 	if build then 
-		o:buildJson()
-
+		o:startBuild()
 	end
 	return o
 end
 
-function xmlParser.save(path,text)
+function builder.save(path,text)
 	io.open(path,"w"):write(text)		
 end
 
-
-function xmlParser.getContent(self,file)
+function builder.getContent(self,file)
 	--print(file)
 	local f=io.open(file,"r")
 	if not f then return print('Unable to open file '..file) end
@@ -84,89 +82,55 @@ function xmlParser.getContent(self,file)
 	return root and root[1] or {} ,title
 end
 
-function xmlParser.buildIdx(self)
+function builder.buildIdx(self)
 	local c=self:getContent(self.idx)
 	if not c then return end
-	local function normalize(node,this,parent,idx)
-		local i=1
-		node.name=""
-		node.ref={}
-		while true do
-			if i>#node then break end
-			if type(node[i])=="string" then
-				node.name=strip(node.name..' '..node[i])
-				nodele.remove(node,i)
-				i=i-1
-			else
-				if node[i].tag~="dl" and node[i].tag~="dd" and not parent then
-					nodele.remove(node,i)
-					i=i-1
-				else
-					i=i-(this(node[i],this,node,i) or 0)
-					--if this(node[i],this,node,i)==1 then i=i-1 
+	local hhk=
+	{[[<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN"><HTML><HEAD>
+		<meta content="Microsoft HTML Help Workshop 4.1" name="GENERATOR">
+		<!-- Sitemap 1.0 -->
+	  </HEAD>
+	  <BODY><OBJECT type="text/site properties">
+		  <param name="Window Styles" value="0x800025">
+		  <param name="comment" value="title:Online Help">
+     	  <param name="comment" value="base:index.htm">
+		</OBJECT><UL>]]}
+	local function append(level,txt)
+		hhk[#hhk+1]='\n    '..string.rep("  ",level).. txt
+	end
+
+	local nodes=c:select("dd[class*='ix']")
+	local tree={}
+	local treenode={}
+	for _,node in ipairs(nodes) do
+		local level=tonumber(node.attributes.class:match('l(%d+)ix'))
+		if level then
+			local n={name=node:getcontent(),ref={}}
+			local found=false
+			for _,a in ipairs(node.nodes) do
+				if a.name=='a' then
+					if not found then found,n.name=true,n.name:gsub(',?%s<a.*','') end
+					n.ref[#n.ref+1]=self.dir..'\\'..a.attributes.href
 				end
 			end
-			i=i+1
-		end
-		if parent and node.attributes and node.attributes.href then
-			if node.attributes.href:sub(1,1)~="#" then
-				parent.ref[#parent.ref+1]=self.dir.."\\"..node.attributes.href
+ 			treenode[level]=n
+			if level>1 then
+				table.insert(treenode[level-1],n)
+				if #treenode[level-1].ref==0 then treenode[level-1].ref=n.ref end
+			else
+				tree[#tree+1]=n
 			end
-			nodele.remove(parent,idx)
-			return 1
-		end
-		
-		if parent and node.tag~="dd" and node.tag~="dl" then
-			if node.name:lower():find("see") then
-				parent.name="#SEE#"..parent.name
-			else 
-				parent.name=strip(parent.name.." "..node.name)
-			end
-			nodele.remove(parent,idx)
-			return 1
-		end
-		
-		node.attributes=nil
-		if node.tag=="dd" and node.name=="" and parent[idx-1].tag=="dd" then
-			for j=1,#node.ref do parent[idx-1].ref[#parent[idx-1].ref+1]=node.ref[j] end
-			for j=1,#node do parent[idx-1][#parent[idx-1]+1]=node[j] end
-			nodele.remove(parent,idx)
-			return 1
-		end
-		
-		if node.tag=="dl" then
-			nodele.remove(parent,idx)
-			for j=1,#node do nodele.insert(parent,idx-1+j,node[j]) end
-			return 1-#node
 		end
 	end
 	
-	normalize(c,normalize)
-	local hhk={[[
-		<HTML><HEAD>
-			<meta content="Microsoft HTML Help Workshop 4.1" name="GENERATOR">
-			<!-- Sitemap 1.0 -->
-		  </HEAD>
-		  <BODY>
-			<OBJECT type="text/site properties">
-			  <param name="Window Styles" value="0x800025">
-			</OBJECT><UL>]]}
-	local function append(level,txt)
-		hhk[#hhk+1]='\n				'..string.rep("  ",level).. txt
-	end
-	local function Build(level,node,this,parent)
+	local function travel(level,node,parent)
 		if not parent then
-			for i=1,#node do this(level,node[i],this,node) end
+			for i=1,#node do 
+				travel(level,node[i],node) 
+			end
 			return
 		end
 		if node.name~="" then
-			if #node.ref==0 then
-				if #node==0 then
-					node.ref[1]='#'
-				else
-					node.ref[1]=node[1].ref[1] or '#'
-				end
-			end
 			for i=1,#node.ref do
 				append(level+1,"<LI><OBJECT type=\"text/sitemap\">")
 				if node.name:find("^#SEE#")==1 then
@@ -179,23 +143,21 @@ function xmlParser.buildIdx(self)
 				end
 				if i==#node.ref and #node>0 then
 					append(level+1,'</OBJECT><UL>')
-					for i=1,#node do this(level+1,node[i],this,node) end
+					for i=1,#node do travel(level+1,node[i],node) end
 					append(level+1,'</UL></LI>')
 				else
 					append(level,'</OBJECT></LI>')
 				end
 			end
-			
 		end
 	end
-	Build(0,c,Build)
+	travel(0,tree)
 	append(0,"</UL></BODY></HTML>")
 	self.hhk=self.name..".hhk"
-	self.save(self.root..self.hhk,nodele.concat(hhk))
-	self.save(self.root..self.hhk..".txt",nodele.concat(hhk))
+	self.save(self.root..self.hhk,table.concat(hhk))
 end
 
-function xmlParser.buildJson(self)
+function builder.buildJson(self)
 	local f=io.open(self.json)
 	if not f then return end
 	local txt=f:read("*a")
@@ -217,9 +179,9 @@ function xmlParser.buildJson(self)
 	end
 	local function travel(node,level)
 		if node.t then
-			node.t=node.t:gsub("[\1-\127\194-\244][\128-\193]", "")
+			node.t=node.t:gsub("([\1-\127\194-\244][\128-\193])", '')
 			append(level+1,"<LI><OBJECT type=\"text/sitemap\">")
-			append(level+2,([[<param name="Name"  value="%s">]]):format(node.t:gsub('®','')))
+			append(level+2,([[<param name="Name"  value="%s">]]):format(node.t))
 			append(level+2,([[<param name="Local" value="%s">]]):format(self.dir..'\\'..node.h))
 
 			if node.c then
@@ -237,106 +199,17 @@ function xmlParser.buildJson(self)
 			end
 		end
 	end
-	local title=root.docs[1].t
 	travel(root.docs[1],0)
 	append(0,"</UL></BODY></HTML>")
 	self.hhc=self.name..".hhc"
 	self.save(self.root..self.hhc,table.concat(hhc))
 	self.save(self.root..self.hhc..".txt",table.concat(hhc))
-	--self:listdir(self.listdir,self.full_dir,self.dir..'\\',self.depth)
-	return title
+	self.topic=root.docs[1].t
+	return self.topic
 end
 
-function xmlParser.buildToc(self)
-	local c,title=self:getContent(self.toc)
-	if not c then return end
-	
-	local hhc={[[
-		<HTML><HEAD>
-			<meta content="Microsoft HTML Help Workshop 4.1" name="GENERATOR">
-			<!-- Sitemap 1.0 -->
-		  </HEAD>
-		  <BODY>
-			<OBJECT type="text/site properties">
-			  <param name="Window Styles" value="0x800025">
-			</OBJECT><UL>]]}
-	local function append(level,txt)
-		hhc[#hhc+1]='\n				'..string.rep("  ",level).. txt
-	end
-		
-	local function normalize(level,node,this,parent,idx)
-		local i=1
-		node.name=""
-		while true do
-			if i>#node then break end
-			if type(node[i])=="string"  then
-				node.name=strip(node.name..' '..node[i])
-				nodele.remove(node,i)
-				i=i-1
-			else
-				if node[i].tag=="script" then 
-					nodele.remove(node,i);i=i-1
-				else
-					i=i-(this(level+1,node[i],this,node,i) or 0)
-				end
-			end
-			i=i+1
-		end			
-		if not node.tag:find("^[hul][%dli]$") and parent then
-			if node.name~="" then parent.name=strip(parent.name.." "..node.name) end
-			if node.attributes and node.attributes.href and node.attributes.href~="" then 
-				parent.href=self.dir.."\\"..strip(node.attributes.href) 
-			end
-			nodele.remove(parent,idx)
-			return 1
-		end
-		node.attributes=nil
-		if node.tag=="ul" then
-			for i=1,#node do
-				nodele.remove(parent,idx)
-				if level>1 then
-					for i=1,#node do nodele.insert(parent,idx-1+i,node[i]) end
-					return 1-#node
-				else
-					for i=1,#node do parent[idx-1][#parent[idx-1]+1]=node[i] end
-					return 1
-				end
-			end
-		end
-	end
-	normalize(0,c,normalize)
-	c.name=title
-	c.href=self.toc
-	c[#c+1]={
-		name="Build-in CHM files",
-		href=self.name..".hhp.txt",
-		tag="h2",
-		[1]={name="hhc",href=self.name..".hhc.txt",tag="li"}}
-	
-	if self.hhk~=""	 then c[#c][2]={name="hhk",href=self.name..".hhk.txt",tag="li"} end
-	local function Build(level,node,this)
-		if node.name~="" and node.href then
-			append(level+1,"<LI><OBJECT type=\"text/sitemap\">")
-			append(level+2,([[<param name="Name"  value="%s">]]):format(node.name))
-			append(level+2,([[<param name="Local" value="%s">]]):format(node.href))
-			if #node>0 then 
-				append(level+1,"</OBJECT><UL>") 
-				for i=1,#node do  this(level+1,node[i],this) end
-				append(level+1,"</UL></LI>") 
-			else
-				append(level+1,"</OBJECT></LI>") 
-			end
-		end
-	end
-	Build(0,c,Build)
-	append(0,"</UL></BODY></HTML>")
-	self.hhc=self.name..".hhc"
-	self.save(self.root..self.hhc,nodele.concat(hhc))
-	self.save(self.root..self.hhc..".txt",nodele.concat(hhc))
-	--self.save("d:\\1.txt",prettytostring(c))
-end
 
-function xmlParser:listdir(this,dir,base,level,callback)
+function builder:listdir(this,dir,base,level,callback)
 	local fd=sys.handle()
 	local function parseHtm(file,level)
 		if not file:lower():find("%.html?$") then return end
@@ -350,8 +223,7 @@ function xmlParser:listdir(this,dir,base,level,callback)
 			return [[href="javascript:location.href ='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..[[.chm'"]]..d..'>CHM<'
 		end)
 
-		txt=txt:gsub('"('..prefix..[[[^"]-)([^"\/]+)"]],function(s,e)
-			if s:find(prefix.."dcommon/")==1 or s:find(prefix.."nav/")==1 or s==prefix:gsub("%%","") then return '"'..s..e..'"' end
+		txt=txt:gsub('"('..prefix..[[[^"]-)([^"\/]+.html?[^"]*)"]],function(s,e)
 			local n=prefix:gsub("%%",""):len()
 			local t=s:sub(n+1)
 			if t:find("^nav/") then 
@@ -364,8 +236,7 @@ function xmlParser:listdir(this,dir,base,level,callback)
 		end)
 
 		if level==2 then
-			print(file)
-			txt=txt:gsub([["%.%./([^%.][^"]-)([^"\/]+)"]],function(s,e)
+			txt=txt:gsub([["%.%./([^%.][^"]-)([^"\/]+.html[^"]*)"]],function(s,e)
 				t=self.parent..'/'..s
 				return '"MS-ITS:'..t:gsub("[\\/]+",".").."chm::/"..t:gsub("[\\/]+","/")..e..'"'
 			end)
@@ -385,10 +256,9 @@ function xmlParser:listdir(this,dir,base,level,callback)
 	end
 end
 
-function xmlParser.buildHhp(self)
-	local _,title=self:getContent(self.toc)
+function builder.buildHhp(self)
+	local title=self.topic
 	local hhp={string.format([[
-	
 		[OPTIONS]
 		Binary TOC=Yes
 		Binary Index=Yes
@@ -412,27 +282,26 @@ function xmlParser.buildHhp(self)
 		[WINDOWS]
 		main="%s","%s","%s","%s\%s","%s\%s",,,,,0x33520,222,0x70384E,[10,10,800,600],0xB0000,,,,,,0
 		[FILES]
-		%s.hhp.txt
-		index.htm]],
+	]],
 		self.name,self.hhc,self.hhk,self.dir,self.title,title,self.name,
 		title,self.hhc,self.hhk,self.dir,self.title,self.dir,self.title,self.name)}
 	hhp[1]=hhp[1]:gsub("\n\t\t\t","\n")
 	local function append(txt) hhp[#hhp+1]='\n'..txt end
 	local _,depth=self.dir:gsub('[\\/]','')
 	self:listdir(self.listdir,self.full_dir,self.dir..'\\',self.depth,append)
-	self.save(self.root..self.name..".hhp",nodele.concat(hhp))
-	self.save(self.root..self.name..".hhp.txt",nodele.concat(hhp))
+	self.save(self.root..self.name..".hhp",table.concat(hhp))
+	self.save(self.root..self.name..".hhp.txt",table.concat(hhp))
 end
 
-function xmlParser.startBuild(self)
+function builder:startBuild()
 	print("building "..self.dir)
 	self:buildIdx()
-	self:buildToc()
+	self:buildJson()
 	self:buildHhp()
 end
 
-
-function BuildJobs(source,target,parallel)
+function BuildJobs(parallel)
+	local source,target=source_doc_root,target_doc_root
 	local lst={"toc","index","title"}
 	local tasks={}
 	local fd=sys.handle()
@@ -452,7 +321,7 @@ function BuildJobs(source,target,parallel)
 						end
 						fd:close()
 					end
-					o=xmlParser:new(targetroot:sub(2,-2),1)
+					o=builder:new(targetroot:sub(2,-2),1)
 					local idx=math.fmod(i,parallel)+1
 					if not tasks[idx] then tasks[idx]={} end
 					tasks[idx][#tasks[idx]+1]='"'..chm_builder..'" "'..target..o.name..'.hhp"'					i=i+1
@@ -462,11 +331,11 @@ function BuildJobs(source,target,parallel)
 	end
 	
 	for i=1,#tasks do
-		io.open(i..".bat","w"):write(nodele.concat(tasks[i],"\n").."\npause")
+		io.open(i..".bat","w"):write(table.concat(tasks[i],"\n").."\npause")
 	end
 end
 
---dirÊÇÄ¿±êÄ¿Â¼
+
 function BuildBatch(dir)
 	local hhc=[[
 	
@@ -529,7 +398,7 @@ index.htm
 			if n==".hhc" and name~="index.hhc" then hhclist[#hhclist+1]=c end
 		end
 	end
-	hhclist=nodele.sort(hhclist,function(a,b)
+	hhclist=table.sort(hhclist,function(a,b)
 		x=io.open(dir..a..".hhp","r"):read("*a"):match("Title=([^\n]+)")
 		y=io.open(dir..b..".hhp","r"):read("*a"):match("Title=([^\n]+)")
 		return x<y
@@ -568,10 +437,10 @@ function parseErrorMsg()
 		end
 	end
 	hhk[#hhk+1]="</UL></BODY></HTML>"
-	io.open("F:\\abc\\server.112.e10880.hhk","w"):write(nodele.concat(hhk,'\n'))
+	io.open("F:\\abc\\server.112.e10880.hhk","w"):write(table.concat(hhk,'\n'))
 end
-xmlParser:new([[server.112\e11013]],1)
---BuildJobs("f:\\BM\\E11882_01\\","f:\\BM\\newdoc11\\",6)
+--builder:new([[server.112\e11013]],1)
+BuildJobs(6)
 --BuildBatch("D:\\BM\\newdoc\\")
 --parseErrorMsg()
---xmlParser.listdir(xmlParser.listdir,"f:\\abc\\nav\\","nav\\",1)
+--builder.listdir(builder.listdir,"f:\\abc\\nav\\","nav\\",1)
