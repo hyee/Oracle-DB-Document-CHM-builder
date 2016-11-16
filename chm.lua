@@ -65,7 +65,12 @@ function builder.new(self,dir,build)
 end
 
 function builder.save(path,text)
-	io.open(path,"w"):write(text)		
+	if type(path)=="table" then
+		print(debug.traceback())
+	end
+	local f=io.open(path,"w")
+	f:write(text)
+	f:close()
 end
 
 function builder.getContent(self,file)
@@ -176,7 +181,27 @@ function builder.buildJson(self)
 		if self.toc:lower():find('\\nav\\') then 
 			self.topic='All Books for Oracle Database Online Documentation Library'
 			href='portal_booklist.htm'
-			self.toc=self.full_dir..'href.htm'
+			self.toc=self.full_dir..href
+			append(1,[[<LI><OBJECT type="text/sitemap">
+            <param name="Name" value="Portal">
+            <param name="Local" value="nav\portal_1.htm">
+          </OBJECT>
+      <LI><OBJECT type="text/sitemap">
+            <param name="Name" value="Master Glossary">
+            <param name="Local" value="nav\mgloss.htm">
+          </OBJECT>
+      <LI><OBJECT type="text/sitemap">
+            <param name="Name" value="Master Index">
+            <param name="Local" value="nav\mindx.htm">
+          </OBJECT>
+      <LI><OBJECT type="text/sitemap">
+            <param name="Name" value="SQL Keywords">
+            <param name="Local" value="nav\sql_keywords.htm">
+          </OBJECT>
+      <LI><OBJECT type="text/sitemap">
+            <param name="Name" value="All Data Dictionary Views">
+            <param name="Local" value="nav\catalog_views.htm">
+          </OBJECT>]])
 		else
 			local _,title=self:getContent(self.toc)
 			href='toc.htm'
@@ -235,7 +260,7 @@ function builder.buildJson(self)
 	return self.topic
 end
 
-function builder:listdir(this,dir,base,level,callback)
+function builder:listdir(dir,base,level,callback)
 	local function parseHtm(file,level)
 		if not file:lower():find("%.html?$") then return end
 		local prefix=string.rep("%.%./",level)
@@ -246,6 +271,7 @@ function builder:listdir(this,dir,base,level,callback)
 		txt,count=txt:gsub("\n(%s+parent%.document%.title)","\n//%1"):gsub("&amp;&amp;","&&")
 		txt=txt:gsub('<header>.-</header>','')
 		txt=txt:gsub('<footer>.*</footer>','')
+		txt=txt:gsub([[<script type[^>]*javascript[^>]*src.-</script>]],'')
 		txt=txt:gsub('%s*<a href="#BEGIN".-</a>%s*','')
 		txt=txt:gsub('href="'..prefix..'([^"]+)%.pdf"([^>]*)>PDF<',function(s,d)
 			return [[href="javascript:location.href ='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..[[.chm'"]]..d..'>CHM<'
@@ -271,14 +297,12 @@ function builder:listdir(this,dir,base,level,callback)
 			end)
 		end
 		if not txt then print("file",file,"miss matched!") end
-		local f=io.open(file,'w')
-		f:write(txt)
-		f:close()
+		self.save(file,txt)
 	end
 
 	for name,is_dir in sys.dir(dir) do
 		if is_dir then
-			this(this,dir..name.."\\",base..name.."\\",level+1)
+			self:listdir(dir..name.."\\",base..name.."\\",level+1)
 		else
 			parseHtm(dir..name,level)
 			if callback then callback(base..name,dir) end
@@ -318,7 +342,7 @@ function builder.buildHhp(self)
 	hhp[1]=hhp[1]:gsub("\n\t\t\t","\n")
 	local function append(txt) hhp[#hhp+1]='\n'..txt end
 	local _,depth=self.dir:gsub('[\\/]','')
-	self:listdir(self.listdir,self.full_dir,self.dir..'\\',self.depth,append)
+	self:listdir(self.full_dir,self.dir..'\\',self.depth,append)
 	self.save(self.root..self.name..".hhp",table.concat(hhp))
 end
 
@@ -400,8 +424,7 @@ end
 
 function BuildBatch()
 	local dir=target_doc_root
-	local hhc=[[
-	
+	local hhc=[[	
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <HTML>
 <HEAD>
@@ -426,8 +449,6 @@ function BuildBatch()
 </HTML>
 	]]
 	local hhp=[[
-
-	
 [OPTIONS]
 Binary TOC=No
 Binary Index=Yes
@@ -435,7 +456,7 @@ Compiled File=index.chm
 Contents File=index.hhc
 Index File=index.hhk
 Default Window=main
-Default Topic=index.htm
+Default Topic=ms-its:nav.chm::/nav/portal_booklist.htm
 Default Font=
 Full-text search=Yes
 Auto Index=Yes
@@ -446,7 +467,7 @@ Compatibility=1.1 or later
 Error log file=..\_errorlog.txt
 
 [WINDOWS]
-main="Oracle 11G Documents(E11882_01)","index.hhc","index.hhk","index.htm","index.htm",,,,,0x33520,222,0x101846,[10,10,800,600],0xB0000,,,,,,0
+main="Oracle 11G Documents(E11882_01)","index.hhc","index.hhk","ms-its:nav.chm::/nav/portal_booklist.htm","ms-its:nav.chm::/nav/portal_booklist.htm",,,,,0x33520,222,0x101846,[10,10,800,600],0xB0000,,,,,,0
 
 [FILES]
 index.htm
@@ -461,12 +482,21 @@ index.htm
 			if n==".hhc" and name~="index.hhc" then hhclist[#hhclist+1]=c end
 		end
 	end
-	hhclist=table.sort(hhclist,function(a,b)
-		x=io.open(dir..a..".hhp","r"):read("*a"):match("Title=([^\n]+)")
-		y=io.open(dir..b..".hhp","r"):read("*a"):match("Title=([^\n]+)")
+
+
+	table.sort(hhclist,function(a,b)
+		local f1=io.open(dir..a..".hhp","r")
+		local f2=io.open(dir..b..".hhp","r")
+		if not f1 then print('cannot find file',dir..a..".hhp") end
+		if not f2 then print('cannot find file',dir..b..".hhp") end
+		local x=f1:read("*a"):match("Title=([^\n]+)")
+		local y=f2:read("*a"):match("Title=([^\n]+)")
+		f1:close()
+		f2:close()
 		return x<y
-	end
-	)
+	end)
+
+	print(hhclist)
 	for i=1,#hhclist do
 		hhc=hhc..('<OBJECT type="text/sitemap"><param name="Merge" value="%s.chm::/%s.hhc"></OBJECT>\n'):format(hhclist[i],hhclist[i])
 		hhp=hhp..hhclist[i]..".chm\n"
@@ -502,8 +532,7 @@ function parseErrorMsg()
 	hhk[#hhk+1]="</UL></BODY></HTML>"
 	io.open("F:\\abc\\server.112.e10880.hhk","w"):write(table.concat(hhk,'\n'))
 end
---builder:new([[appdev.112\e10764]],1)
+--builder:new([[nav]],1)
 BuildJobs(6)
 --BuildBatch()
 --parseErrorMsg()
---builder.listdir(builder.listdir,"f:\\abc\\nav\\","nav\\",1)
