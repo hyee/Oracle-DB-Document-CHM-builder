@@ -97,7 +97,7 @@ function builder.getContent(self,file)
 	--print(1)
 	local title=txt:match([[<meta name="doctitle" content="([^"]+)"]])
 	if not title then title=txt:match("<title>(.-)</title>") end
-	title=title:gsub("%s*&reg;?%s*"," "):gsub("([\1-\127\194-\244][\128-\193])", '')
+	title=title:gsub("%s*&reg;?%s*"," "):gsub("([\1-\127\194-\244][\128-\193])", ''):gsub('%s*|+%s*',''):gsub('&.-;','')
 	local root=html.parse(txt):select("div[class^='IND']")
 	return root and root[1] or {} ,title
 end
@@ -276,7 +276,8 @@ function builder.buildJson(self)
 	return self.topic
 end
 
-function builder:listdir(dir,base,level,callback)
+function builder:listdir(base,level,callback)
+	local root=target_doc_root..base
 	local function parseHtm(file,level)
 		if not file:lower():find("%.html?$") then return end
 		local prefix=string.rep("%.%./",level)
@@ -292,11 +293,12 @@ function builder:listdir(dir,base,level,callback)
 		txt=txt:gsub([[(<a [^>]*)onclick=(["'"]).-%2]],'%1')
 		txt=txt:gsub([[(<a [^>]*)target=(["'"]).-%2]],'%1')
 		txt=txt:gsub('href="'..prefix..'([^"]+)%.pdf"([^>]*)>PDF<',function(s,d)
-			return [[href="javascript:location.href ='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..[[.chm'"]]..d..'>CHM<'
+			return [[href="javascript:location.href='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..[[.chm'"]]..d..'>CHM<'
 		end)
 
 		txt=txt:gsub('"('..prefix..[[[^"]-)([^"\/]+.html?[^"]*)"]],function(s,e)
 			if e:find('.css',1,true) or e:find('.js',1,true) then return '"'..s..e..'"' end
+
 			local n=prefix:gsub("%%",""):len()
 			local t=s:sub(n+1)
 			if t:find("^nav/") then 
@@ -318,10 +320,10 @@ function builder:listdir(dir,base,level,callback)
 		self.save(file,txt)
 	end
 
-	local f=io.popen(([[dir /b/s %s*.htm]]):format(dir))
+	local f=io.popen(([[dir /b/s %s*.htm]]):format(root))
 	for file in f:lines() do
 		parseHtm(file,level)
-		if callback then callback(file:sub(#target_doc_root+1),dir) end
+		if callback then callback(file:sub(#target_doc_root+1),root) end
 	end
 	f:close()
 end
@@ -358,7 +360,7 @@ function builder.buildHhp(self)
 	hhp[1]=hhp[1]:gsub("\n\t\t\t","\n")
 	local function append(txt) hhp[#hhp+1]='\n'..txt end
 	local _,depth=self.dir:gsub('[\\/]','')
-	self:listdir(self.full_dir,self.dir..'\\',self.depth,append)
+	self:listdir(self.dir..'\\',self.depth,append)
 	self.save(self.root..self.name..".hhp",table.concat(hhp))
 end
 
@@ -380,7 +382,7 @@ function builder.BuildJobs(parallel)
 	fd:close()
 	for i,book in ipairs(book_list) do
 		local this=builder:new(book,true,true)
-		local idx=math.fmod(i,parallel)+1
+		local idx=math.fmod(i-1,parallel)+1
 		if i==1 then idx=parallel+1 end -- for nav
 		if not tasks[idx] then tasks[idx]={} end
 		tasks[idx][#tasks[idx]+1]='"'..chm_builder..'" "'..target_doc_root..this.name..'.hhp"'
@@ -392,10 +394,9 @@ function builder.BuildJobs(parallel)
 			os.execute('start "Job '..i..'" '..i..'.bat')
 		end
 	end
-	print('Since compiling nav.chm takes longer time, please execute '..(i+1)..'.bat separately if necessary.')
+	print('Since compiling nav.chm takes longer time, please execute '..(parallel+1)..'.bat separately if necessary.')
 	--builder.BuildBatch()
 end
-
 
 function builder.BuildBatch()
 	local dir=target_doc_root
@@ -407,7 +408,18 @@ function builder.BuildBatch()
 <!-- Sitemap 1.0 -->
 </HEAD>
 <BODY>
-	]]
+   <OBJECT type="text/site properties">
+     <param name="Window Styles" value="0x800025">
+     <param name="comment" value="title:Online Help">
+     <param name="comment" value="base:index.htm">
+   </OBJECT>
+   <UL>
+      <LI><OBJECT type="text/sitemap">
+            <param name="Name" value="CHM File List">
+            <param name="Local" value="index.htm">
+          </OBJECT>
+   </UL>
+]]
 	local hhk=[[
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <HTML>
@@ -415,6 +427,11 @@ function builder.BuildBatch()
 <meta name="generator" content="Microsoft&reg; HTML Help Workshop 4.1">
 <!-- Sitemap 1.0 -->
 <BODY>
+   <OBJECT type="text/site properties">
+     <param name="Window Styles" value="0x800025">
+     <param name="comment" value="title:Online Help">
+     <param name="comment" value="base:index.htm">
+   </OBJECT>
 <OBJECT type="text/site properties">
 	<param name="FrameName" value="right">
 </OBJECT>
@@ -461,32 +478,32 @@ index.htm
 	for name in f:lines() do
 		local n=name:sub(-4)
 		local c=name:sub(1,-5)
-		if n==".hhc" and name~="index.hhc" then hhclist[#hhclist+1]=c end
+		if n==".hhc" and name~="index.hhc" then
+			local f1=io.open(dir..c..".hhp","r")
+			local title=f1:read("*a"):match("Title=([^\n]+)")
+			f1:close()
+			hhclist[#hhclist+1]={file=c,title=title,chm=c..".chm"}
+		end
 	end
 	f:close()
 
-	table.sort(hhclist,function(a,b)
-		local f1=io.open(dir..a..".hhp","r")
-		local f2=io.open(dir..b..".hhp","r")
-		if not f1 then print('cannot find file',dir..a..".hhp") end
-		if not f2 then print('cannot find file',dir..b..".hhp") end
-		local x=f1:read("*a"):match("Title=([^\n]+)")
-		local y=f2:read("*a"):match("Title=([^\n]+)")
-		f1:close()
-		f2:close()
-		return x<y
-	end)
-
-	for i=1,#hhclist do
-		hhc=hhc..('<OBJECT type="text/sitemap"><param name="Merge" value="%s.chm::/%s.hhc"></OBJECT>\n'):format(hhclist[i],hhclist[i])
-		hhp=hhp..hhclist[i]..".chm\n"
+	table.sort(hhclist,function(a,b) return a.title<b.title end)
+	local html={'<table><tr><th align="left">CHM File Name</th><th align="left">Book Name</th></tr>'}
+	local item='   <OBJECT type="text/sitemap">\n     <param name="Merge" value="%s.chm::/%s.hhc">\n   </OBJECT>\n'
+	for i,book in ipairs(hhclist) do
+		html[#html+1]=[[<tr><td><a href="javascript:location.href='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..book.chm..[['">]]..book.chm..[[</a></td><td>]]..book.title..[[</td></tr>]]
+		hhc=hhc..(item):format(book.file,book.file)
+		hhp=hhp..book.chm.."\n"
 	end
+	html=table.concat(html,'\n')..'</table>'
+	
 	hhc=hhc..'</BODY></HTML>'
+	io.open(dir.."index.htm","w"):write(html)
 	io.open(dir.."index.hhp","w"):write(hhp)
 	io.open(dir.."index.hhc","w"):write(hhc)
 	io.open(dir.."index.hhk","w"):write(hhk)
 end
 
---builder:new([[nav]],1,1)
-builder.BuildJobs(6)
---builder.BuildBatch()
+--builder:new([[appdev.112\e10769]],1,1)
+--builder.BuildJobs(6)
+builder.BuildBatch()
