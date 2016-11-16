@@ -1,12 +1,11 @@
 
-require "sys"
 require "math"
 local html=require("htmlparser")
 local json=require("json")
 local io,pairs,ipairs=io,pairs,ipairs
-local chm_builder='C:\\Program Files (x86)\\HTML Help Workshop\\hhc.exe'
-local source_doc_root='f:\\BM\\E11882_01\\'
-local target_doc_root='f:\\BM\\newdoc11\\'
+local chm_builder=[[C:\Program Files (x86)\HTML Help Workshop\hhc.exe]]
+local source_doc_root=[[f:\BM\E11882_01\]]
+local target_doc_root=[[f:\BM\newdoc11\]]
 
 
 --local function print(txt)
@@ -23,7 +22,6 @@ end
 
 
 local jcount={}
-
 local builder={}
 function builder.new(self,dir,build,copy)
 	dir=dir:gsub('[\\/]+','\\'):gsub("\\$","")
@@ -291,8 +289,8 @@ function builder:listdir(dir,base,level,callback)
 		txt=txt:gsub('%s*<footer>.*</footer>%s*','')
 		txt=txt:gsub([[%s*<script type[^>]*javascript[^>]*src.-</script>%s*]],'')
 		txt=txt:gsub('%s*<a href="#BEGIN".-</a>%s*','')
-		txt=txt:gsub([[(<a [^>]*)%s*onclick=(["'"]).-%2]],'%1')
-		txt=txt:gsub([[(<a [^>]*)%s*target=(["'"]).-%2]],'%1')
+		txt=txt:gsub([[(<a [^>]*)onclick=(["'"]).-%2]],'%1')
+		txt=txt:gsub([[(<a [^>]*)target=(["'"]).-%2]],'%1')
 		txt=txt:gsub('href="'..prefix..'([^"]+)%.pdf"([^>]*)>PDF<',function(s,d)
 			return [[href="javascript:location.href ='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..[[.chm'"]]..d..'>CHM<'
 		end)
@@ -371,61 +369,35 @@ function builder:startBuild()
 	self:buildHhp()
 end
 
-function BuildJobs(parallel)
-	local source,target=source_doc_root,target_doc_root
-	local lst={"toc.htm","index.htm","title.htm"}
+function builder.BuildJobs(parallel)
 	local tasks={}
-	local fd=sys.handle()
-	local i=1
-	for name,is_dir in sys.dir(source) do
-		local found=false
-		if is_dir then
-			for n,isdir in sys.dir(source..name.."\\") do
-				if isdir then
-					local targetroot='"'..target..name.."\\"..n..'"'
-					local sourceroot=source..name.."\\"..n.."\\"
-					local flag=false
-					for j=1,3 do
-						if builder.exists(sourceroot..lst[j],true) and j<=2 then
-							found,flag=true,true
-						end
-					end
-					if flag then
-						o=builder:new(targetroot:sub(2,-2),true,true)
-						local idx=math.fmod(i,parallel)+1
-						if not tasks[idx] then tasks[idx]={} end
-						tasks[idx][#tasks[idx]+1]='"'..chm_builder..'" "'..target..o.name..'.hhp"'
-						i=i+1
-					end
-				end
-			end
-			if not found then
-				local targetroot='"'..target..name..'"'
-				local sourceroot=source..name.."\\"
-				if name~='dcommon' then 
-					local o=builder:new(targetroot:sub(2,-2),true,true)
-					local idx
-					if name=='nav' then 
-						idx=parallel+1
-					else
-						idx=math.fmod(i,parallel)+1
-					end
-					if not tasks[idx] then tasks[idx]={} end
-					tasks[idx][#tasks[idx]+1]='"'..chm_builder..'" "'..target..o.name..'.hhp"'
-					i=i+1
-				end
-			end
-		end
+	local fd=io.popen(([[dir /s/b "%stoc.htm"]]):format(source_doc_root))
+	local book_list={"nav"}
+	for dir in fd:lines() do
+		local name=dir:sub(#source_doc_root+1):gsub('[\\/][^\\/]+$','')
+		if name~="nav" then book_list[#book_list+1]=name end
 	end
-	os.execute('copy /Y html5.css '..target..'nav\\css')
+	fd:close()
+	for i,book in ipairs(book_list) do
+		local this=builder:new(book,true,true)
+		local idx=math.fmod(i,parallel)+1
+		if i==1 then idx=parallel+1 end -- for nav
+		if not tasks[idx] then tasks[idx]={} end
+		tasks[idx][#tasks[idx]+1]='"'..chm_builder..'" "'..target_doc_root..this.name..'.hhp"'
+	end
+	os.execute('copy /Y html5.css '..target_doc_root..'nav\\css')
 	for i=1,#tasks do
 		io.open(i..".bat","w"):write(table.concat(tasks[i],"\n"))
+		if i<=parallel then
+			os.execute('start "Job '..i..'" '..i..'.bat')
+		end
 	end
-	print('\nPlease run 1.bat -- 6.bat simulatenously to build the CHMs in parallel..')
+	print('Since compiling nav.chm takes longer time, please execute '..(i+1)..'.bat separately if necessary.')
+	--builder.BuildBatch()
 end
 
 
-function BuildBatch()
+function builder.BuildBatch()
 	local dir=target_doc_root
 	local hhc=[[	
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
@@ -515,34 +487,6 @@ index.htm
 	io.open(dir.."index.hhk","w"):write(hhk)
 end
 
-function parseErrorMsg()
-	local dir="F:\\abc\\server.112\\e10880\\"
-	local hhk={[[
-	<HTML><HEAD>
-		<meta content="Microsoft HTML Help Workshop 4.1" name="GENERATOR">
-		<!-- Sitemap 1.0 -->
-	  </HEAD>
-	  <BODY>
-		<OBJECT type="text/site properties">
-		  <param name="Window Styles" value="0x800025">
-		</OBJECT><UL>]]}
-	for name,is_dir in sys.dir(dir) do
-		if not is_dir and name:find("%.html?$") then
-			local txt=io.open(dir..name,"r"):read("*a")
-			for k in txt:gmatch([[<a%s+name="([^"]+%-%d+)"]]) do
-				hhk[#hhk+1]=string.format([[
-			<LI><OBJECT type="text/sitemap">
-			  <param name="Name" value="%s">
-			  <param name="Local" value="server.112\e10880\%s#%s">
-			</OBJECT></LI>]],k,name,k)
-			end
-		end
-	end
-	hhk[#hhk+1]="</UL></BODY></HTML>"
-	io.open("F:\\abc\\server.112.e10880.hhk","w"):write(table.concat(hhk,'\n'))
-end
-
 --builder:new([[nav]],1,1)
-BuildJobs(6)
---BuildBatch()
---parseErrorMsg()
+builder.BuildJobs(6)
+--builder.BuildBatch()
