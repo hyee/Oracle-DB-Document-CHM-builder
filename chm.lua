@@ -25,7 +25,7 @@ end
 local jcount={}
 
 local builder={}
-function builder.new(self,dir,build)
+function builder.new(self,dir,build,copy)
 	dir=dir:gsub('[\\/]+','\\'):gsub("\\$","")
 	if dir:find(target_doc_root,1,true)==1 then dir=dir:sub(#target_doc_root+1) end
 	local _,depth,parent,folder=dir:gsub('[\\/]','')
@@ -49,19 +49,36 @@ function builder.new(self,dir,build)
 		parent=parent,
 		folder=folder,
 		name=dir:gsub("[\\/]+",".")}
-	local fd = sys.handle()
-	if fd:open(full_dir.."title.htm","r") then 
-		o.title="title.htm" 
+	if copy then
+		local targetroot='"'..full_dir..'"'
+		local sourceroot=source_doc_root..dir.."\\"
+		local lst={"toc.htm","index.htm","title.htm"}
+		for j=1,3 do self.exists(sourceroot..lst[j]) end
+		local exec=io.popen("mkdir "..targetroot..' 2>nul & xcopy "'..sourceroot..'*" '..targetroot.." /E/Y/Q  /EXCLUDE:exclude.txt")
+		exec:close()
+	end
+	if self.exists(full_dir.."title.htm",true) then 
+		o.title="title.htm"
 	else
 		o.title="toc.htm"
-	end 
-	fd:close()
+	end
 	setmetatable(o,self)
 	self.__index=self
 	if build then 
 		o:startBuild()
 	end
 	return o
+end
+
+function builder.exists(file,silent)
+	local f,err=io.open(file,'r')
+	if not f then
+		if not silent then print(err) end
+		return false
+	else
+		f:close()
+		return true 
+	end
 end
 
 function builder.save(path,text)
@@ -159,7 +176,7 @@ function builder.buildIdx(self)
 end
 
 function builder.buildJson(self)
-	self.hhc=self.root..self.name..".hhc"
+	self.hhc=self.name..".hhc"
 	local hhc={
     [[<HTML><HEAD>
 		<meta content="Microsoft HTML Help Workshop 4.1" name="GENERATOR">
@@ -182,6 +199,7 @@ function builder.buildJson(self)
 			self.topic='All Books for Oracle Database Online Documentation Library'
 			href='portal_booklist.htm'
 			self.toc=self.full_dir..href
+			self.title=href
 			append(1,[[<LI><OBJECT type="text/sitemap">
             <param name="Name" value="Portal">
             <param name="Local" value="nav\portal_1.htm">
@@ -212,7 +230,7 @@ function builder.buildJson(self)
 		append(2,([[<param name="Local" value="%s">]]):format(self.dir..'\\'..href))
 		append(1,"</OBJECT></LI>")
 		append(0,"</UL></BODY></HTML>")
-		self.save(self.hhc,table.concat(hhc))
+		self.save(self.root..self.hhc,table.concat(hhc))
 		return 
 	end
 	local txt=f:read("*a")
@@ -221,7 +239,7 @@ function builder.buildJson(self)
 	local last_node
 	local function travel(node,level)
 		if node.t then
-			node.t=node.t:gsub("([\1-\127\194-\244][\128-\193])", '')
+			node.t=node.t:gsub("([\1-\127\194-\244][\128-\193])", ''):gsub('%s*|+%s*',''):gsub('&.-;','')
 			last_node=node.h
 			append(level+1,"<LI><OBJECT type=\"text/sitemap\">")
 			append(level+2,([[<param name="Name"  value="%s">]]):format(node.t))
@@ -255,7 +273,7 @@ function builder.buildJson(self)
 	travel(root.docs[1],0)
 	
 	append(0,"</UL></BODY></HTML>")
-	self.save(self.hhc,table.concat(hhc))
+	self.save(self.root..self.hhc,table.concat(hhc))
 	self.topic=root.docs[1].t
 	return self.topic
 end
@@ -269,10 +287,12 @@ function builder:listdir(dir,base,level,callback)
 		local count=0
 		f:close()
 		txt,count=txt:gsub("\n(%s+parent%.document%.title)","\n//%1"):gsub("&amp;&amp;","&&")
-		txt=txt:gsub('<header>.-</header>','')
-		txt=txt:gsub('<footer>.*</footer>','')
-		txt=txt:gsub([[<script type[^>]*javascript[^>]*src.-</script>]],'')
+		txt=txt:gsub('%s*<header>.-</header>%s*','')
+		txt=txt:gsub('%s*<footer>.*</footer>%s*','')
+		txt=txt:gsub([[%s*<script type[^>]*javascript[^>]*src.-</script>%s*]],'')
 		txt=txt:gsub('%s*<a href="#BEGIN".-</a>%s*','')
+		txt=txt:gsub([[(<a [^>]*)%s*onclick=(["'"]).-%2]],'%1')
+		txt=txt:gsub([[(<a [^>]*)%s*target=(["'"]).-%2]],'%1')
 		txt=txt:gsub('href="'..prefix..'([^"]+)%.pdf"([^>]*)>PDF<',function(s,d)
 			return [[href="javascript:location.href ='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..[[.chm'"]]..d..'>CHM<'
 		end)
@@ -300,14 +320,12 @@ function builder:listdir(dir,base,level,callback)
 		self.save(file,txt)
 	end
 
-	for name,is_dir in sys.dir(dir) do
-		if is_dir then
-			self:listdir(dir..name.."\\",base..name.."\\",level+1)
-		else
-			parseHtm(dir..name,level)
-			if callback then callback(base..name,dir) end
-		end
+	local f=io.popen(([[dir /b/s %s*.htm]]):format(dir))
+	for file in f:lines() do
+		parseHtm(file,level)
+		if callback then callback(file:sub(#target_doc_root+1),dir) end
 	end
+	f:close()
 end
 
 function builder.buildHhp(self)
@@ -347,7 +365,7 @@ function builder.buildHhp(self)
 end
 
 function builder:startBuild()
-	print("building "..self.dir)
+	print(string.rep('=',100).."\nBuilding "..self.dir)
 	self:buildIdx()
 	self:buildJson()
 	self:buildHhp()
@@ -368,18 +386,12 @@ function BuildJobs(parallel)
 					local sourceroot=source..name.."\\"..n.."\\"
 					local flag=false
 					for j=1,3 do
-						local f=sourceroot..lst[j]
-						if not fd:open(f,"r") then
-							print(f,"not exists")
-						elseif j<=2 then
+						if builder.exists(sourceroot..lst[j],true) and j<=2 then
 							found,flag=true,true
 						end
-						fd:close()
 					end
 					if flag then
-						os.execute("mkdir "..targetroot)
-						os.execute('xcopy "'..sourceroot..'*" '..targetroot.." /E/Y/Q  /EXCLUDE:exclude.txt")
-						o=builder:new(targetroot:sub(2,-2),1)
+						o=builder:new(targetroot:sub(2,-2),true,true)
 						local idx=math.fmod(i,parallel)+1
 						if not tasks[idx] then tasks[idx]={} end
 						tasks[idx][#tasks[idx]+1]='"'..chm_builder..'" "'..target..o.name..'.hhp"'
@@ -390,17 +402,8 @@ function BuildJobs(parallel)
 			if not found then
 				local targetroot='"'..target..name..'"'
 				local sourceroot=source..name.."\\"
-				for j=1,3 do
-					local f=sourceroot..lst[j]
-					if not fd:open(f,"r") then
-						print(f,"not exists")
-					end
-					fd:close()
-				end
-				os.execute("mkdir "..targetroot)
-				os.execute('xcopy "'..sourceroot..'*" '..targetroot.." /E/Y/Q  /EXCLUDE:exclude.txt")
 				if name~='dcommon' then 
-					local o=builder:new(targetroot:sub(2,-2),1)
+					local o=builder:new(targetroot:sub(2,-2),true,true)
 					local idx
 					if name=='nav' then 
 						idx=parallel+1
@@ -434,7 +437,11 @@ function BuildBatch()
 <BODY>
 	]]
 	local hhk=[[
-</HEAD>
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<HTML>
+<HEAD>
+<meta name="generator" content="Microsoft&reg; HTML Help Workshop 4.1">
+<!-- Sitemap 1.0 -->
 <BODY>
 <OBJECT type="text/site properties">
 	<param name="FrameName" value="right">
@@ -465,6 +472,9 @@ Title=Oracle 11G Documents
 Create CHI file=No
 Compatibility=1.1 or later
 Error log file=..\_errorlog.txt
+Full text search stop list file=
+Display compile progress=Yes
+Display compile notes=Yes
 
 [WINDOWS]
 main="Oracle 11G Documents(E11882_01)","index.hhc","index.hhk","ms-its:nav.chm::/nav/portal_booklist.htm","ms-its:nav.chm::/nav/portal_booklist.htm",,,,,0x33520,222,0x101846,[10,10,800,600],0xB0000,,,,,,0
@@ -475,14 +485,13 @@ index.htm
 [MERGE FILES]
 ]]
 	local hhclist={}
-	for name,is_dir in sys.dir(dir) do
-		if not is_dir then 
-			local n=name:sub(-4)
-			local c=name:sub(1,-5)
-			if n==".hhc" and name~="index.hhc" then hhclist[#hhclist+1]=c end
-		end
+	local f=io.popen(([[dir /b "%s*.hhc"]]):format(dir))
+	for name in f:lines() do
+		local n=name:sub(-4)
+		local c=name:sub(1,-5)
+		if n==".hhc" and name~="index.hhc" then hhclist[#hhclist+1]=c end
 	end
-
+	f:close()
 
 	table.sort(hhclist,function(a,b)
 		local f1=io.open(dir..a..".hhp","r")
@@ -496,11 +505,11 @@ index.htm
 		return x<y
 	end)
 
-	print(hhclist)
 	for i=1,#hhclist do
 		hhc=hhc..('<OBJECT type="text/sitemap"><param name="Merge" value="%s.chm::/%s.hhc"></OBJECT>\n'):format(hhclist[i],hhclist[i])
 		hhp=hhp..hhclist[i]..".chm\n"
 	end
+	hhc=hhc..'</BODY></HTML>'
 	io.open(dir.."index.hhp","w"):write(hhp)
 	io.open(dir.."index.hhc","w"):write(hhc)
 	io.open(dir.."index.hhk","w"):write(hhk)
@@ -532,7 +541,8 @@ function parseErrorMsg()
 	hhk[#hhk+1]="</UL></BODY></HTML>"
 	io.open("F:\\abc\\server.112.e10880.hhk","w"):write(table.concat(hhk,'\n'))
 end
---builder:new([[nav]],1)
+
+--builder:new([[nav]],1,1)
 BuildJobs(6)
 --BuildBatch()
 --parseErrorMsg()
