@@ -176,6 +176,7 @@ function builder.buildJson(self)
 		if self.toc:lower():find('\\nav\\') then 
 			self.topic='All Books for Oracle Database Online Documentation Library'
 			href='portal_booklist.htm'
+			self.toc=self.full_dir..'href.htm'
 		else
 			local _,title=self:getContent(self.toc)
 			href='toc.htm'
@@ -235,15 +236,16 @@ function builder.buildJson(self)
 end
 
 function builder:listdir(this,dir,base,level,callback)
-	local fd=sys.handle()
 	local function parseHtm(file,level)
 		if not file:lower():find("%.html?$") then return end
 		local prefix=string.rep("%.%./",level)
-		local txt=fd:open(file,"r"):read("*a")
+		local f=io.open(file,'r')
+		local txt=f:read("*a")
 		local count=0
-		fd:close()
+		f:close()
 		txt,count=txt:gsub("\n(%s+parent%.document%.title)","\n//%1"):gsub("&amp;&amp;","&&")
 		txt=txt:gsub('<header>.-</header>','')
+		txt=txt:gsub('<footer>.*</footer>','')
 		txt=txt:gsub('%s*<a href="#BEGIN".-</a>%s*','')
 		txt=txt:gsub('href="'..prefix..'([^"]+)%.pdf"([^>]*)>PDF<',function(s,d)
 			return [[href="javascript:location.href ='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..[[.chm'"]]..d..'>CHM<'
@@ -269,8 +271,9 @@ function builder:listdir(this,dir,base,level,callback)
 			end)
 		end
 		if not txt then print("file",file,"miss matched!") end
-		fd:open(file,"w"):write(txt or "")
-		fd:close()
+		local f=io.open(file,'w')
+		f:write(txt)
+		f:close()
 	end
 
 	for name,is_dir in sys.dir(dir) do
@@ -389,7 +392,7 @@ function BuildJobs(parallel)
 	end
 	os.execute('copy /Y html5.css '..target..'nav\\css')
 	for i=1,#tasks do
-		io.open(i..".bat","w"):write(table.concat(tasks[i],"\n").."\npause")
+		io.open(i..".bat","w"):write(table.concat(tasks[i],"\n"))
 	end
 	print('\nPlease run 1.bat -- 6.bat simulatenously to build the CHMs in parallel..')
 end
@@ -499,7 +502,7 @@ function parseErrorMsg()
 	hhk[#hhk+1]="</UL></BODY></HTML>"
 	io.open("F:\\abc\\server.112.e10880.hhk","w"):write(table.concat(hhk,'\n'))
 end
---builder:new([[appdev.112\e25519]],1)
+--builder:new([[appdev.112\e10764]],1)
 BuildJobs(6)
 --BuildBatch()
 --parseErrorMsg()
