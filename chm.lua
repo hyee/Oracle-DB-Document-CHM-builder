@@ -222,6 +222,9 @@ function builder.buildJson(self)
 			local _,title=self:getContent(self.toc)
 			href='toc.htm'
 			self.topic=title
+			if self.toc:find('e13993') then
+				self.topic='Oracle Database RAC FAN Events Java API Reference'
+			end
 		end
 		append(1,"<LI><OBJECT type=\"text/sitemap\">")
 		append(2,([[<param name="Name"  value="%s">]]):format(self.topic))
@@ -504,6 +507,6 @@ index.htm
 	io.open(dir.."index.hhk","w"):write(hhk)
 end
 
---builder:new([[appdev.112\e10769]],1,1)
+--builder:new([[appdev.112\e13993]],1)
 --builder.BuildJobs(6)
 builder.BuildBatch()
