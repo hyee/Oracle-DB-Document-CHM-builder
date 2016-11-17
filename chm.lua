@@ -288,6 +288,7 @@ function builder:listdir(base,level,callback)
 		local txt=f:read("*a")
 		local count=0
 		f:close()
+		self.topic=self.topic or ""
 		local header=[[<table summary="" cellspacing="0" cellpadding="0">
 			<tr>
 			<td align="left" valign="top"><b style="color:#326598;font-size:24px">]]..self.topic:gsub("Oracle","Oracle&reg;")..[[</b></td>
@@ -381,9 +382,13 @@ end
 
 function builder:startBuild()
 	print(string.rep('=',100).."\nBuilding "..self.dir)
-	self:buildIdx()
-	self:buildJson()
-	self:buildHhp()
+	if self.dir:find('dcommon') then
+		self:listdir(self.dir..'\\',self.depth)
+	else
+		self:buildIdx()
+		self:buildJson()
+		self:buildHhp()
+	end
 end
 
 function builder.BuildAll(parallel)
@@ -395,6 +400,7 @@ function builder.BuildAll(parallel)
 		if name~="nav" then book_list[#book_list+1]=name end
 	end
 	fd:close()
+	builder:new('dcommon',true,true)
 	for i,book in ipairs(book_list) do
 		local this=builder:new(book,true,true)
 		local idx=math.fmod(i-1,parallel)+1
@@ -402,9 +408,10 @@ function builder.BuildAll(parallel)
 		if not tasks[idx] then tasks[idx]={} end
 		tasks[idx][#tasks[idx]+1]='"'..chm_builder..'" "'..target_doc_root..this.name..'.hhp"'
 	end
+
 	os.execute('copy /Y html5.css '..target_doc_root..'nav\\css')
 	for i=1,#tasks do
-		io.open(i..".bat","w"):write(table.concat(tasks[i],"\n"))
+		builder.save(i..".bat",table.concat(tasks[i],"\n"))
 		if i<=parallel then
 			os.execute('start "Compiling CHMS '..i..'" '..i..'.bat')
 		end
@@ -513,12 +520,12 @@ index.htm
 	html=table.concat(html,'\n')..'</table><br/><p style="font-size:12px">@2016 by hyee https://github.com/hyee/Oracle-DB-Document-CHM-builder</p>'
 	
 	hhc=hhc..'</BODY></HTML>'
-	io.open(dir.."index.htm","w"):write(html)
-	io.open(dir.."index.hhp","w"):write(hhp)
-	io.open(dir.."index.hhc","w"):write(hhc)
-	io.open(dir.."index.hhk","w"):write(hhk)
+	builder.save(dir.."index.htm",html)
+	builder.save(dir.."index.hhp",hhp)
+	builder.save(dir.."index.hhc",hhc)
+	builder.save(dir.."index.hhk",hhk)
 end
 
---builder:new([[ADLOB]],1,1)
-builder.BuildAll(6)
+builder:new([[dcommon]],1,1)
+--builder.BuildAll(6)
 --builder.BuildBatch()
