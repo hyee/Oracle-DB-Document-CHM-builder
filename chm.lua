@@ -97,7 +97,7 @@ function builder:getContent(file)
 	if not txt then return end
 	local title=txt:match([[<meta name="doctitle" content="([^"]+)"]])
 	if not title then title=txt:match("<title>(.-)</title>") end
-	title=title:gsub("%s*&reg;?%s*"," "):gsub("([\1-\127\194-\244][\128-\193])", ''):gsub('%s*|+%s*',''):gsub('&.-;','')
+	if title then title=title:gsub("%s*&reg;?%s*"," "):gsub("([\1-\127\194-\244][\128-\193])", ''):gsub('%s*|+%s*',''):gsub('&.-;','') end
 	local root=html.parse(txt):select("div[class^='IND']")
 	return root and root[1] or nil,title
 end
@@ -441,7 +441,7 @@ function builder.BuildAll(parallel)
 		if not tasks[idx] then tasks[idx]={} end
 		tasks[idx][#tasks[idx]+1]='"'..chm_builder..'" "'..target_doc_root..this.name..'.hhp"'
 	end
-	table.insert(task[#task],'"'..chm_builder..'" "'..target_doc_root..'index.hhp"')
+	table.insert(tasks[#tasks],'"'..chm_builder..'" "'..target_doc_root..'index.hhp"')
 	os.execute('copy /Y html5.css '..target_doc_root..'nav\\css')
 	for i=1,#tasks do
 		builder.save(i..".bat",table.concat(tasks[i],"\n")..'exit\n')
@@ -450,7 +450,7 @@ function builder.BuildAll(parallel)
 		end
 	end
 	print('Since compiling nav.chm takes longer time, please execute '..(parallel+1)..'.bat separately if necessary.')
-	--builder.BuildBatch()
+	builder.BuildBatch()
 end
 
 function builder.BuildBatch()
@@ -566,5 +566,5 @@ chm.htm
 end
 
 --builder:new('ADMIN',1,1)
-builder.BuildAll(6)
---builder.BuildBatch()
+--builder.BuildAll(6)
+builder.BuildBatch()
