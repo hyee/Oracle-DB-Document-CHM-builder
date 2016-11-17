@@ -873,9 +873,7 @@ button#download {
 	div.showcont {
 		width: 35% !important;
 	}
-	.IND.large-9.medium-8.columns.resizecont {
-		width: 100% !important;
-	}
+
 	#NAV {
     position:relative !important;
 	}
@@ -899,9 +897,6 @@ button#download {
 	}*/
 	div.showcont {
 		width: 15% !important;
-	}
-	.IND.large-9.medium-8.columns.resizecont {
-		width: 97% !important;
 	}
 }
 @media only screen and (min-width: 336px) {
@@ -938,10 +933,8 @@ button#download {
 	}*/
 	div.showcont {
 		width: 12% !important;
-	}	
-	.IND.large-9.medium-8.columns.resizecont {
-		width: 97% !important;
 	}
+	
 	.infobox-restrict, .infobox-caution, .infobox-warn, .infobox-note, .infobox-tip, .infobox-important, aside,  div.infoboxnote,  div.infoboxnotealso, div.infoboxnotewarn, div.infoboxtip {
     padding: 15px 25px 5px 35px;
   }
@@ -977,9 +970,7 @@ button#download {
 	div.showcont {
 		width: 10% !important;
 	}	
-	.IND.large-9.medium-8.columns.resizecont {
-		width: 97% !important;
-	}
+
 	#NAV {
     position:relative !important;
 	}
@@ -1001,9 +992,7 @@ button#download {
 	div.showcont {
 		width: 33.3333% !important;
 	}
-	.IND.large-9.medium-8.columns.resizecont {
-		width: 65% !important;
-	}
+	
 	#NAV {
     position:absolute !important;
 	}
@@ -1028,9 +1017,7 @@ button#download {
 	div.showcont {
 		width: 33.3333% !important;
 	}	
-	.IND.large-9.medium-8.columns.resizecont {
-		width: 65% !important;
-	}
+	
 	article {
 	padding: 20px;
 }  
@@ -1385,14 +1372,7 @@ input[type="checkbox"] + label, input[type="radio"] + label {
     height: 100%;
     overflow: auto;
 }
-.IND.large-9.medium-8.columns {
-    position: relative;
-    /*width: 350px;*/
-    float: right;
-    /*padding-top: 40px; Commenting for extra space between nav and content*/
-    padding-bottom: 40px;
-    margin-top: -50px; /* Adding for removing extra space between nav and content*/
-}
+
 #leftsidebar {
     /*width: 150px;*/
     overflow: auto;
@@ -1807,10 +1787,7 @@ ul.simple {
    width: 100%;
    display:none !important;
  }
- div.IND.large-9.medium-8.columns {
-  width: 97%;
-  padding-top: 0 !important;
- }
+ 
  div#CONTENT {
   padding-top: 0 !important;
  }

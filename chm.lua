@@ -4,8 +4,8 @@ local html=require("htmlparser")
 local json=require("json")
 local io,pairs,ipairs=io,pairs,ipairs
 local chm_builder=[[C:\Program Files (x86)\HTML Help Workshop\hhc.exe]]
-local source_doc_root=[[f:\BM\E11882_01\]]
-local target_doc_root=[[f:\BM\newdoc11\]]
+local source_doc_root=[[f:\BM\E66230_01\]]
+local target_doc_root=[[f:\BM\newdoc12\]]
 
 
 --local function print(txt)
@@ -393,7 +393,7 @@ function builder:startBuild()
 	self:buildHhp()
 end
 
-function builder.BuildJobs(parallel)
+function builder.BuildAll(parallel)
 	local tasks={}
 	local fd=io.popen(([[dir /s/b "%stoc.htm"]]):format(source_doc_root))
 	local book_list={"nav"}
@@ -479,7 +479,7 @@ Default Font=
 Full-text search=Yes
 Auto Index=Yes
 Language=
-Title=Oracle 11G Documents
+Title=Oracle 11c Documents(E66230_01)
 Create CHI file=No
 Compatibility=1.1 or later
 Error log file=..\_errorlog.txt
@@ -488,7 +488,7 @@ Display compile progress=Yes
 Display compile notes=Yes
 
 [WINDOWS]
-main="Oracle 11G Documents(E11882_01)","index.hhc","index.hhk","ms-its:nav.chm::/nav/portal_booklist.htm","ms-its:nav.chm::/nav/portal_booklist.htm",,,,,0x33520,222,0x101846,[10,10,800,600],0xB0000,,,,,,0
+main="Oracle 12c Documents(E66230_01)","index.hhc","index.hhk","ms-its:nav.chm::/nav/portal_booklist.htm","ms-its:nav.chm::/nav/portal_booklist.htm",,,,,0x33520,222,0x101846,[10,10,800,600],0xB0000,,,,,,0
 
 [FILES]
 index.htm
@@ -510,14 +510,14 @@ index.htm
 	f:close()
 
 	table.sort(hhclist,function(a,b) return a.title<b.title end)
-	local html={'<table><tr><th align="left">CHM File Name</th><th align="left">Book Name</th></tr>'}
+	local html={'<table border><tr><th align="left" style="font-size:20px">CHM File Name</th><th align="left" style="font-size:20px">Book Name</th></tr>'}
 	local item='   <OBJECT type="text/sitemap">\n     <param name="Merge" value="%s.chm::/%s.hhc">\n   </OBJECT>\n'
 	for i,book in ipairs(hhclist) do
 		html[#html+1]=[[<tr><td><a href="javascript:location.href='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..book.chm..[['">]]..book.chm..[[</a></td><td>]]..book.title..[[</td></tr>]]
 		hhc=hhc..(item):format(book.file,book.file)
 		hhp=hhp..book.chm.."\n"
 	end
-	html=table.concat(html,'\n')..'</table>'
+	html=table.concat(html,'\n')..'</table><br/><p style="font-size:12px">@2016 by hyee https://github.com/hyee/Oracle-DB-Document-CHM-builder</p>'
 	
 	hhc=hhc..'</BODY></HTML>'
 	io.open(dir.."index.htm","w"):write(html)
@@ -527,5 +527,5 @@ index.htm
 end
 
 --builder:new([[appdev.112\e10825]],1,1)
-builder.BuildJobs(6)
+builder.BuildAll(6)
 --builder.BuildBatch()
