@@ -1,5 +1,5 @@
 # Oracle-DB-Document-CHM-builder
-Generate Oracle database online document into offline CHM file set. For self use and is user-unfriendly. 
+Generate Oracle database online documents into offline CHM file set. For self use and is user-unfriendly. 
 <br/>Features:
 * One book per CHM file, can be used separately, refer to `index.chm->CHM File Overview`
 * `index.chm` to combine the contents and indexes of all books

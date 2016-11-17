@@ -1,20 +1,25 @@
 
+local source_doc_root=[[f:\BM\E66230_01\]]
+local target_doc_root=[[f:\BM\newdoc12\]]
+local errmsg_book=[[ERRMG]]
+--[[--FOR 11g
+local source_doc_root='f:\\BM\\E11882_01\\'
+local target_doc_root='f:\\BM\\newdoc11\\'
+local errmsg_book='server.112\\e17766'
+--]]
+
 require "math"
 local html=require("htmlparser")
 local json=require("json")
 local io,pairs,ipairs=io,pairs,ipairs
 local chm_builder=[[C:\Program Files (x86)\HTML Help Workshop\hhc.exe]]
-local source_doc_root=[[f:\BM\E66230_01\]]
-local target_doc_root=[[f:\BM\newdoc12\]]
-local errmsg_book=[[ERRMG]]
-
---local function print(txt)
 
 local reps={
 	["\""]="&quot;",
 	["<"]="&lt;",
 	[">"]="&gt;"
 }
+
 function rp(s) return reps[s] end
 function strip(str)
 	return str:gsub("[\n\r\b]",""):gsub("^[ ,]*(.-)[ ,]*$", "%1"):gsub("  +"," "):gsub("[\"<>]",rp):gsub("%s*&reg;?%s*"," ")
@@ -59,6 +64,8 @@ function builder.new(self,dir,build,copy)
 	else
 		o.title="toc.htm"
 	end
+
+	if self.exists(full_dir..'index-all.html') then o.is_javadoc=true end
 	setmetatable(o,self)
 	self.__index=self
 	if build then 
@@ -108,18 +115,19 @@ function builder.buildIdx(self)
 		<!-- Sitemap 1.0 -->
 	  </HEAD>
 	  <BODY><UL>]]}
+
 	local c=self:getContent(self.idx)
 	if not c then c=self:getContent(self.idx..'l') end
-	if not c and not self.errmsg then return end
+	if not c and not self.errmsg and not self.is_javadoc then return end
 	
 	local function append(level,txt)
 		hhk[#hhk+1]='\n    '..string.rep("  ",level).. txt
 	end
-	
+
 	local tree={}
 	if self.errmsg then 
 		tree=self.errmsg
-	elseif self.exists(self.full_dir..'index-all.html') then --process java-doc api
+	elseif self.is_javadoc then --process java-doc api
 		local nodes=html.parse(self.read(self.full_dir..'index-all.html')):select("a")
 		local addrs={}
 		self.hhk='index-all.html'
@@ -139,20 +147,61 @@ function builder.buildIdx(self)
 		for _,node in ipairs(nodes) do
 			local level=tonumber(node.attributes.class:match('l(%d+)ix'))
 			if level then
-				local n={name=node:getcontent(),ref={}}
+				local n={name=node:getcontent():gsub('[%s,]*','') ,ref={}}
+				if n.name:find('<em>See</em>',1,true) then n.name=n.name:gsub('%.?%s*<em>.+','') end
+				n.name=n.name:gsub('<.->','')
 				local found=false
 				for _,a in ipairs(node.nodes) do
 					if a.name=='a' then
-						if not found then found,n.name=true,n.name:gsub(',?%s<a.*','') end
+						if not found then found=true end
 						n.ref[#n.ref+1]=a.attributes.href
 					end
 				end
 	 			treenode[level]=n
 				if level>1 then
 					table.insert(treenode[level-1],n)
-					if #treenode[level-1].ref==0 then treenode[level-1].ref=n.ref end
+					for lv=1,level-1 do
+						if #treenode[lv].ref==0 then treenode[lv].ref=n.ref end
+					end
 				else
 					tree[#tree+1]=n
+				end
+			end
+		end
+
+		if #nodes==0 then
+			local uls=c:select("div > ul")
+			local function access_childs(li,level)
+				if li.name~="li" or not li.nodes[1] then return end
+				local n={name=li:getcontent():gsub('[%s,]+<.*$',''):gsub('^%s+',''),ref={}}
+				if n.name=="" then return end
+				if level==1 then 
+					tree[#tree+1]=n
+				elseif n.name=="about" then
+					level,n=level-1,treenode[level-1]
+				else
+					table.insert(treenode[level-1],n)
+				end
+				treenode[level]=n
+				
+				local lis=li:select("li")
+				if li.nodes[1].name~="ul" then
+					for _,a in ipairs(li:select("a")) do
+						n.ref[#n.ref+1]=a.attributes.href
+					end
+					for lv=1,level-1 do
+						if #treenode[lv].ref==0 then treenode[lv].ref=n.ref end
+					end
+				else
+					for _,child in ipairs(li.nodes[1].nodes) do
+						access_childs(child,level+1)
+					end
+				end
+			end
+
+			for _,ul in ipairs(uls) do
+				for _,li in ipairs(ul.nodes) do
+					access_childs(li,1)
 				end
 			end
 		end
@@ -294,6 +343,13 @@ function builder:processHTML(file,level)
 	if not file:lower():find("%.html?$") then return end
 	local prefix=string.rep("%.%./",level)
 	local txt=self.read(file)
+	if self.is_javadoc then
+		txt=txt:gsub('(<script)(.-)(</script>)',function(a,b,c)
+			return a..b:gsub('&lt;','>'):gsub('&amp;','&'):gsub('&gt;','<')..c
+		end)
+		self.save(file,txt)
+		return
+	end
 	--deal with the error message book
 	if self.dir==errmsg_book then
 		if not self.errmsg then self.errmsg={} end
@@ -301,6 +357,7 @@ function builder:processHTML(file,level)
 		local name=file:match("[^\\/]+$")
 		for idx,node in ipairs(doc) do
 			local a=node.nodes[1]
+			if a.name~='a' and a.nodes[1] then node,a=a,a.nodes[1] end
 			if a.name=='a' and a.attributes.id and not a.attributes.href then
 				local content=node:getcontent():gsub('.*</a>%s*',''):gsub('<.->',''):gsub('%s+$',''):gsub('%s+',' ')
 				if content:find(':') then
@@ -444,7 +501,7 @@ function builder.BuildAll(parallel)
 	table.insert(tasks[#tasks],'"'..chm_builder..'" "'..target_doc_root..'index.hhp"')
 	os.execute('copy /Y html5.css '..target_doc_root..'nav\\css')
 	for i=1,#tasks do
-		builder.save(i..".bat",table.concat(tasks[i],"\n")..'exit\n')
+		builder.save(i..".bat",table.concat(tasks[i],"\n")..'\nexit\n')
 		if i<=parallel then
 			os.execute('start "Compiling CHMS '..i..'" '..i..'.bat')
 		end
@@ -455,17 +512,19 @@ end
 
 function builder.BuildBatch()
 	local dir=target_doc_root
-	builder.topic='Oracle 12G Documents(E66230_01)'
+	builder.topic='Oracle 12c Documents(E66230_01)'
+	if errmsg_book~='ERRMG' then
+		builder.topic='Oracle 11g Documents(E11882_01)'
+	end
 	builder.save(dir..'index.htm',builder.read(source_doc_root..'index.htm'))
 	builder.processHTML(builder,dir..'index.htm',0)
-	local hhc=[[	
-<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+	local hhc=[[<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <HTML>
 <HEAD>
-<meta name="GENERATOR" content="Microsoft&reg; HTML Help Workshop 4.1">
+<meta name="generator" content="Microsoft&reg; HTML Help Workshop 4.1">
 <!-- Sitemap 1.0 -->
-</HEAD>
-<BODY>
+</head>
+<body>
    <OBJECT type="text/site properties">
      <param name="Window Styles" value="0x800025">
      <param name="comment" value="title:Online Help">
@@ -476,7 +535,7 @@ function builder.BuildBatch()
             <param name="Name" value="Portal">
             <param name="Local" value="index.htm">
           </OBJECT>
-       <OBJECT type="text/sitemap">
+      <LI><OBJECT type="text/sitemap">
             <param name="Name" value="CHM File Overview">
             <param name="Local" value="chm.htm">
           </OBJECT>
@@ -565,6 +624,6 @@ chm.htm
 	builder.save(dir.."index.hhk",hhk)
 end
 
---builder:new('ADMIN',1,1)
---builder.BuildAll(6)
-builder.BuildBatch()
+--builder:new('TDPPT',1,1)
+builder.BuildAll(6)
+--builder.BuildBatch()
