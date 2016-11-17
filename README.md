@@ -4,7 +4,7 @@ Generate Oracle database online documents into offline CHM file set. For self us
 * One book per CHM file, can be used separately, refer to `index.chm->CHM File Overview`
 * `index.chm` to combine the contents and indexes of all books
 * Supports cross-book searching
-* Portable and no depedency
+* Portable and no depedency in all Windows platforms
 
 # Available Prebuild CHM books:
 Refer to https://pan.baidu.com/s/1hrTfE9e
@@ -18,7 +18,6 @@ Refer to https://pan.baidu.com/s/1hrTfE9e
 All dependent libraries have been included in this project:
 * LuaJIT        : https://github.com/LuaJIT/LuaJIT
 * lua-htmlparser: https://github.com/msva/lua-htmlparser
-* luasys        : https://github.com/tnodir/luasys
 * Json4Lua      : https://github.com/craigmj/json4lua
 
 # Build Steps For Further Reference
