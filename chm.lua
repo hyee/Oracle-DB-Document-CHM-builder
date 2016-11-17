@@ -318,22 +318,15 @@ function builder:listdir(base,level,callback)
 			return [[href="javascript:location.href='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..[[.chm'"]]..d..'>CHM<'
 		end)
 
-		txt=txt:gsub('"('..prefix..[[[^"]-)([^"\/]+.html?[^"]*)"]],function(s,e)
-			if e:find('.css',1,true) or e:find('.js',1,true) then return '"'..s..e..'"' end
-
-			local n=prefix:gsub("%%",""):len()
-			local t=s:sub(n+1)
-			if t:find("^nav/") then 
-				t="nav/"
-			else
-				t=t:match("^[^/]+/[^/]+/")
-			end
-			if not t then return '"'..s..e..'"' end
-			return '"MS-ITS:'..t:gsub("/",".").."chm::"..s:sub(n)..e..'"'
+		txt=txt:gsub('"('..prefix..'[^"]-)([^"\\/]+.html?[^"\\/]*)"',function(s,e)
+			if e:find('.css',1,true) or e:find('.js',1,true) or s:find('dcommon') then return '"'..s..e..'"' end
+			local t=s:gsub('^'..prefix,'')
+			if t=='' then return '"'..s..e..'"' end
+			return '"MS-ITS:'..t:gsub("/",".").."chm::/"..t..e..'"'
 		end)
 
 		if level==2 then
-			txt=txt:gsub([["%.%./([^%.][^"]-)([^"\/]+.html?[^"]*)"]],function(s,e)
+			txt=txt:gsub([["%.%./([^%.][^"]-)([^"\/]+.html?[^"\/]*)"]],function(s,e)
 				t=self.parent..'/'..s
 				return '"MS-ITS:'..t:gsub("[\\/]+",".").."chm::/"..t:gsub("[\\/]+","/")..e..'"'
 			end)
@@ -413,7 +406,7 @@ function builder.BuildAll(parallel)
 	for i=1,#tasks do
 		io.open(i..".bat","w"):write(table.concat(tasks[i],"\n"))
 		if i<=parallel then
-			os.execute('start "Job '..i..'" '..i..'.bat')
+			os.execute('start "Compiling CHMS '..i..'" '..i..'.bat')
 		end
 	end
 	print('Since compiling nav.chm takes longer time, please execute '..(parallel+1)..'.bat separately if necessary.')
@@ -479,7 +472,7 @@ Default Font=
 Full-text search=Yes
 Auto Index=Yes
 Language=
-Title=Oracle 11c Documents(E66230_01)
+Title=Oracle 12G Documents(E66230_01)
 Create CHI file=No
 Compatibility=1.1 or later
 Error log file=..\_errorlog.txt
@@ -488,7 +481,7 @@ Display compile progress=Yes
 Display compile notes=Yes
 
 [WINDOWS]
-main="Oracle 12c Documents(E66230_01)","index.hhc","index.hhk","ms-its:nav.chm::/nav/portal_booklist.htm","ms-its:nav.chm::/nav/portal_booklist.htm",,,,,0x33520,222,0x101846,[10,10,800,600],0xB0000,,,,,,0
+main="Oracle 12G Documents(E66230_01)","index.hhc","index.hhk","ms-its:nav.chm::/nav/portal_booklist.htm","ms-its:nav.chm::/nav/portal_booklist.htm",,,,,0x33520,222,0x101846,[10,10,800,600],0xB0000,,,,,,0
 
 [FILES]
 index.htm
@@ -526,6 +519,6 @@ index.htm
 	io.open(dir.."index.hhk","w"):write(hhk)
 end
 
---builder:new([[appdev.112\e10825]],1,1)
+--builder:new([[ADLOB]],1,1)
 builder.BuildAll(6)
 --builder.BuildBatch()
