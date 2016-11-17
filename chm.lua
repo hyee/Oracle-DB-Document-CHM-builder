@@ -288,13 +288,32 @@ function builder:listdir(base,level,callback)
 		local txt=f:read("*a")
 		local count=0
 		f:close()
+		local header=[[<table summary="" cellspacing="0" cellpadding="0">
+			<tr>
+			<td align="left" valign="top"><b style="color:#326598;font-size:24px">]]..self.topic:gsub("Oracle","Oracle&reg;")..[[</b></td>
+			<td width="70" align="center" valign="top"><a href="toc.htm"><img width="24" height="24" src="../../dcommon/gifs/doclib.gif" alt="Go to Documentation Home" /><br />
+			<span class="icon">Content</span></a></td>
+			<td width="60" align="center" valign="top"><a href="index.htm"><img width="24" height="24" src="../../dcommon/gifs/index.gif" alt="Go to Index" /><br />
+			<span class="icon">Index</span></a></td>
+			<td width="80" align="center" valign="top"><a href="MS-ITS:nav.chm::/nav/portal_booklist.htm"><img width="24" height="24" src="../../dcommon/gifs/booklist.gif" alt="Go to Book List" /><br />
+			<span class="icon">Book List</span></a></td>
+			<td width="80" align="center" valign="top"><a href="MS-ITS:nav.chm::/nav/mindx.htm"><img width="24" height="24" src="../../dcommon/gifs/masterix.gif" alt="Go to Master Index" /><br />
+			<span class="icon">Master Index</span></a></td>
+			</tr>
+			</table>]]
 		txt,count=txt:gsub("\n(%s+parent%.document%.title)","\n//%1"):gsub("&amp;&amp;","&&")
-		txt=txt:gsub('%s*<header>.-</header>%s*','')
+		txt,count=txt:gsub('%s*<header>.-</header>%s*','')
 		txt=txt:gsub('%s*<footer>.*</footer>%s*','')
 		txt=txt:gsub([[%s*<script type[^>]*javascript[^>]*src.-</script>%s*]],'')
+		txt=txt:gsub([[(<script [^>]*javascript.->)(.-)(</script>)]],function(head,content,foot)
+				return head..content:gsub('&lt;','>')..foot
+			end)
 		txt=txt:gsub('%s*<a href="#BEGIN".-</a>%s*','')
 		txt=txt:gsub([[(<a [^>]*)onclick=(["'"]).-%2]],'%1')
 		txt=txt:gsub([[(<a [^>]*)target=(["'"]).-%2]],'%1')
+		if count>0 then
+			txt=txt:gsub('(<div class="IND .->)','%1'..header,1)
+		end
 		txt=txt:gsub('href="'..prefix..'([^"]+)%.pdf"([^>]*)>PDF<',function(s,d)
 			return [[href="javascript:location.href='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..[[.chm'"]]..d..'>CHM<'
 		end)
@@ -507,6 +526,6 @@ index.htm
 	io.open(dir.."index.hhk","w"):write(hhk)
 end
 
---builder:new([[appdev.112\e13993]],1)
---builder.BuildJobs(6)
-builder.BuildBatch()
+--builder:new([[appdev.112\e10825]],1,1)
+builder.BuildJobs(6)
+--builder.BuildBatch()
