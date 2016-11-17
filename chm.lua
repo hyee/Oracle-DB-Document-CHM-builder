@@ -6,7 +6,7 @@ local io,pairs,ipairs=io,pairs,ipairs
 local chm_builder=[[C:\Program Files (x86)\HTML Help Workshop\hhc.exe]]
 local source_doc_root=[[f:\BM\E66230_01\]]
 local target_doc_root=[[f:\BM\newdoc12\]]
-
+local errmsg_book=[[ERRMG]]
 
 --local function print(txt)
 
@@ -19,7 +19,6 @@ function rp(s) return reps[s] end
 function strip(str)
 	return str:gsub("[\n\r\b]",""):gsub("^[ ,]*(.-)[ ,]*$", "%1"):gsub("  +"," "):gsub("[\"<>]",rp):gsub("%s*&reg;?%s*"," ")
 end
-
 
 local jcount={}
 local builder={}
@@ -68,15 +67,20 @@ function builder.new(self,dir,build,copy)
 	return o
 end
 
-function builder.exists(file,silent)
+function builder.read(file)
 	local f,err=io.open(file,'r')
 	if not f then
-		if not silent then print(err) end
-		return false
+		return nil,err
 	else
+		local text=f:read('*a')
 		f:close()
-		return true 
+		return text
 	end
+end
+
+function builder.exists(file,silent)
+	local text,err=builder.read(file)
+	return text
 end
 
 function builder.save(path,text)
@@ -88,57 +92,72 @@ function builder.save(path,text)
 	f:close()
 end
 
-function builder.getContent(self,file)
-	--print(file)
-	local f=io.open(file,"r")
-	if not f then return print('Unable to open file '..file) end
-	local txt=f:read("*a")
-	f:close() 
-	--print(1)
+function builder:getContent(file)
+	local txt=self.exists(file)
+	if not txt then return end
 	local title=txt:match([[<meta name="doctitle" content="([^"]+)"]])
 	if not title then title=txt:match("<title>(.-)</title>") end
 	title=title:gsub("%s*&reg;?%s*"," "):gsub("([\1-\127\194-\244][\128-\193])", ''):gsub('%s*|+%s*',''):gsub('&.-;','')
 	local root=html.parse(txt):select("div[class^='IND']")
-	return root and root[1] or {} ,title
+	return root and root[1] or nil,title
 end
 
 function builder.buildIdx(self)
-	local c=self:getContent(self.idx)
-	if not c then return end
-	local hhk=
-	{[[<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN"><HTML><HEAD>
+	local hhk={[[<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN"><HTML><HEAD>
 		<meta content="Microsoft HTML Help Workshop 4.1" name="GENERATOR">
 		<!-- Sitemap 1.0 -->
 	  </HEAD>
 	  <BODY><UL>]]}
+	local c=self:getContent(self.idx)
+	if not c then c=self:getContent(self.idx..'l') end
+	if not c and not self.errmsg then return end
+	
 	local function append(level,txt)
 		hhk[#hhk+1]='\n    '..string.rep("  ",level).. txt
 	end
-
-	local nodes=c:select("dd[class*='ix']")
+	
 	local tree={}
-	local treenode={}
-	for _,node in ipairs(nodes) do
-		local level=tonumber(node.attributes.class:match('l(%d+)ix'))
-		if level then
-			local n={name=node:getcontent(),ref={}}
-			local found=false
-			for _,a in ipairs(node.nodes) do
-				if a.name=='a' then
-					if not found then found,n.name=true,n.name:gsub(',?%s<a.*','') end
-					n.ref[#n.ref+1]=self.dir..'\\'..a.attributes.href
+	if self.errmsg then 
+		tree=self.errmsg
+	elseif self.exists(self.full_dir..'index-all.html') then --process java-doc api
+		local nodes=html.parse(self.read(self.full_dir..'index-all.html')):select("a")
+		local addrs={}
+		self.hhk='index-all.html'
+		for idx,a in ipairs(nodes) do
+			if a.attributes.href then
+				local content=a:getcontent():gsub('<.->',''):gsub('%s+$','')
+				local ref=a.attributes.href:gsub('^%.[\\/]?',''):gsub('/','\\')
+				if (ref:find('#',1,true) or 0)> 2 and content~="" and not addrs[content..ref] then
+					addrs[content..ref]=1
+					tree[#tree+1]={name=content,ref={ref}}
 				end
 			end
- 			treenode[level]=n
-			if level>1 then
-				table.insert(treenode[level-1],n)
-				if #treenode[level-1].ref==0 then treenode[level-1].ref=n.ref end
-			else
-				tree[#tree+1]=n
+		end
+	else
+		local nodes=c:select("dd[class*='ix']")
+		local treenode={}
+		for _,node in ipairs(nodes) do
+			local level=tonumber(node.attributes.class:match('l(%d+)ix'))
+			if level then
+				local n={name=node:getcontent(),ref={}}
+				local found=false
+				for _,a in ipairs(node.nodes) do
+					if a.name=='a' then
+						if not found then found,n.name=true,n.name:gsub(',?%s<a.*','') end
+						n.ref[#n.ref+1]=a.attributes.href
+					end
+				end
+	 			treenode[level]=n
+				if level>1 then
+					table.insert(treenode[level-1],n)
+					if #treenode[level-1].ref==0 then treenode[level-1].ref=n.ref end
+				else
+					tree[#tree+1]=n
+				end
 			end
 		end
 	end
-	
+
 	local function travel(level,node,parent)
 		if not parent then
 			for i=1,#node do 
@@ -155,7 +174,7 @@ function builder.buildIdx(self)
 					append(level+2,([[<<param name="See Also" value="%s">]]):format(node.name))
 				else
 					append(level+2,([[<param name="Name"  value="%s">]]):format(node.name))
-					append(level+2,([[<param name="Local" value="%s">]]):format(node.ref[i]))
+					append(level+2,([[<param name="Local" value="%s">]]):format(self.dir..'\\'..node.ref[i]))
 				end
 				if i==#node.ref and #node>0 then
 					append(level+1,'</OBJECT><UL>')
@@ -190,8 +209,8 @@ function builder.buildJson(self)
 		hhc[#hhc+1]='\n    '..string.rep("  ",level*2).. txt
 	end
 
-	local f=io.open(self.json)
-	if not f then
+	local txt=self.read(self.json)
+	if not txt then
 		local title,href
 		if self.toc:lower():find('\\nav\\') then 
 			self.topic='All Books for Oracle Database Online Documentation Library'
@@ -199,10 +218,6 @@ function builder.buildJson(self)
 			self.toc=self.full_dir..href
 			self.title=href
 			append(1,[[<LI><OBJECT type="text/sitemap">
-            <param name="Name" value="Portal">
-            <param name="Local" value="nav\portal_1.htm">
-          </OBJECT>
-      <LI><OBJECT type="text/sitemap">
             <param name="Name" value="Master Glossary">
             <param name="Local" value="nav\mgloss.htm">
           </OBJECT>
@@ -211,7 +226,7 @@ function builder.buildJson(self)
             <param name="Local" value="nav\mindx.htm">
           </OBJECT>
       <LI><OBJECT type="text/sitemap">
-            <param name="Name" value="SQL Keywords">
+            <param name="Name" value="All SQL Keywords">
             <param name="Local" value="nav\sql_keywords.htm">
           </OBJECT>
       <LI><OBJECT type="text/sitemap">
@@ -222,7 +237,7 @@ function builder.buildJson(self)
 			local _,title=self:getContent(self.toc)
 			href='toc.htm'
 			self.topic=title
-			if self.toc:find('e13993') then
+			if self.toc:find('e13993') or self.toc:find('JAFAN') then
 				self.topic='Oracle Database RAC FAN Events Java API Reference'
 			end
 		end
@@ -234,8 +249,6 @@ function builder.buildJson(self)
 		self.save(self.root..self.hhc,table.concat(hhc))
 		return 
 	end
-	local txt=f:read("*a")
-	f:close() 
 	local root=json.decode(txt)
 	local last_node
 	local function travel(node,level)
@@ -251,9 +264,7 @@ function builder.buildJson(self)
 					travel(child,level+1)
 				end
 				if level==0 and last_node and not last_node:lower():find('^index%.htm') then
-					local f=io.open(self.idx,'r')
-					if f then
-						f:close()
+					if self.exists(self.idx,true) then
 						append(1,"<LI><OBJECT type=\"text/sitemap\">")
 						append(2,[[<param name="Name"  value="Index">]])
 						append(2,([[<param name="Local" value="%s">]]):format(self.dir..'\\index.htm'))
@@ -279,72 +290,92 @@ function builder.buildJson(self)
 	return self.topic
 end
 
-function builder:listdir(base,level,callback)
-	local root=target_doc_root..base
-	local function parseHtm(file,level)
-		if not file:lower():find("%.html?$") then return end
-		local prefix=string.rep("%.%./",level)
-		local f=io.open(file,'r')
-		local txt=f:read("*a")
-		local count=0
-		f:close()
-		self.topic=self.topic or ""
-		local header=[[<table summary="" cellspacing="0" cellpadding="0">
-			<tr>
-			<td align="left" valign="top"><b style="color:#326598;font-size:24px">]]..self.topic:gsub("Oracle","Oracle&reg;")..[[</b></td>
-			<td width="70" align="center" valign="top"><a href="toc.htm"><img width="24" height="24" src="../../dcommon/gifs/doclib.gif" alt="Go to Documentation Home" /><br />
-			<span class="icon">Content</span></a></td>
-			<td width="60" align="center" valign="top"><a href="index.htm"><img width="24" height="24" src="../../dcommon/gifs/index.gif" alt="Go to Index" /><br />
-			<span class="icon">Index</span></a></td>
-			<td width="80" align="center" valign="top"><a href="MS-ITS:nav.chm::/nav/portal_booklist.htm"><img width="24" height="24" src="../../dcommon/gifs/booklist.gif" alt="Go to Book List" /><br />
-			<span class="icon">Book List</span></a></td>
-			<td width="80" align="center" valign="top"><a href="MS-ITS:nav.chm::/nav/mindx.htm"><img width="24" height="24" src="../../dcommon/gifs/masterix.gif" alt="Go to Master Index" /><br />
-			<span class="icon">Master Index</span></a></td>
-			</tr>
-			</table>]]
-		txt,count=txt:gsub("\n(%s+parent%.document%.title)","\n//%1"):gsub("&amp;&amp;","&&")
-		txt,count=txt:gsub('%s*<header>.-</header>%s*','')
-		txt=txt:gsub('%s*<footer>.*</footer>%s*','')
-		txt=txt:gsub([[%s*<script type[^>]*javascript[^>]*src.-</script>%s*]],'')
-		txt=txt:gsub([[(<script [^>]*javascript.->)(.-)(</script>)]],function(head,content,foot)
-				return head..content:gsub('&lt;','>')..foot
-			end)
-		txt=txt:gsub('%s*<a href="#BEGIN".-</a>%s*','')
-		txt=txt:gsub([[(<a [^>]*)onclick=(["'"]).-%2]],'%1')
-		txt=txt:gsub([[(<a [^>]*)target=(["'"]).-%2]],'%1')
-		if count>0 then
-			txt=txt:gsub('(<div class="IND .->)','%1'..header,1)
+function builder:processHTML(file,level)
+	if not file:lower():find("%.html?$") then return end
+	local prefix=string.rep("%.%./",level)
+	local txt=self.read(file)
+	--deal with the error message book
+	if self.dir==errmsg_book then
+		if not self.errmsg then self.errmsg={} end
+		local doc=html.parse(txt):select("dt")
+		local name=file:match("[^\\/]+$")
+		for idx,node in ipairs(doc) do
+			local a=node.nodes[1]
+			if a.name=='a' and a.attributes.id and not a.attributes.href then
+				local content=node:getcontent():gsub('.*</a>%s*',''):gsub('<.->',''):gsub('%s+$',''):gsub('%s+',' ')
+				if content:find(':') then
+					self.errmsg[#self.errmsg+1]={name=content:match('[^%s:]+'),ref={name..'#'..a.attributes.id}}
+				end
+			end
 		end
-		txt=txt:gsub('href="'..prefix..'([^"]+)%.pdf"([^>]*)>PDF<',function(s,d)
-			return [[href="javascript:location.href='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..[[.chm'"]]..d..'>CHM<'
-		end)
-
-		txt=txt:gsub('"('..prefix..'[^"]-)([^"\\/]+.html?[^"\\/]*)"',function(s,e)
-			if e:find('.css',1,true) or e:find('.js',1,true) or s:find('dcommon') then return '"'..s..e..'"' end
-			local t=s:gsub('^'..prefix,'')
-			if t=='' then return '"'..s..e..'"' end
-			return '"MS-ITS:'..t:gsub("/",".").."chm::/"..t..e..'"'
-		end)
-
-		if level==2 then
-			txt=txt:gsub([["%.%./([^%.][^"]-)([^"\/]+.html?[^"\/]*)"]],function(s,e)
-				t=self.parent..'/'..s
-				return '"MS-ITS:'..t:gsub("[\\/]+",".").."chm::/"..t:gsub("[\\/]+","/")..e..'"'
-			end)
-		end
-		if not txt then print("file",file,"miss matched!") end
-		self.save(file,txt)
 	end
 
+	local count=0
+	self.topic=self.topic or ""
+	local dcommon_path=string.rep('../',level)..'dcommon'
+	local header=[[<table summary="" cellspacing="0" cellpadding="0">
+		<tr>
+		<td align="left" valign="top"><b style="color:#326598;font-size:24px">%s</b></td>
+		<td width="70" align="center" valign="top"><a href="toc.htm"><img width="24" height="24" src="%s/gifs/doclib.gif" alt="Go to Documentation Home" /><br />
+		<span class="icon">Content</span></a></td>
+		<td width="60" align="center" valign="top"><a href="index.htm"><img width="24" height="24" src="%s/gifs/index.gif" alt="Go to Index" /><br />
+		<span class="icon">Index</span></a></td>
+		<td width="80" align="center" valign="top"><a href="MS-ITS:nav.chm::/nav/portal_booklist.htm"><img width="24" height="24" src="%s/gifs/booklist.gif" alt="Go to Book List" /><br />
+		<span class="icon">Book List</span></a></td>
+		<td width="80" align="center" valign="top"><a href="MS-ITS:nav.chm::/nav/mindx.htm"><img width="24" height="24" src="%s/gifs/masterix.gif" alt="Go to Master Index" /><br />
+		<span class="icon">Master Index</span></a></td>
+		</tr>
+		</table>]]
+	header=header:format(self.topic:gsub("Oracle","Oracle&reg;"),dcommon_path,dcommon_path,dcommon_path,dcommon_path)
+	txt,count=txt:gsub("\n(%s+parent%.document%.title)","\n//%1"):gsub("&amp;&amp;","&&")
+	txt,count=txt:gsub('%s*<header>.-</header>%s*','')
+	txt=txt:gsub('%s*<footer>.*</footer>%s*','')
+	txt=txt:gsub([[%s*<script.-<%/script>%s*]],'')
+	txt=txt:gsub('%s*<a href="#BEGIN".-</a>%s*','')
+	txt=txt:gsub('(<[^>]*) onload=".-"','%1')
+	txt=txt:gsub([[(<a [^>]*)onclick=(["'"]).-%2]],'%1')
+	txt=txt:gsub([[(<a [^>]*)target=(["'"]).-%2]],'%1')
+	if count>0 then
+		txt=txt:gsub('(<div class="IND .->)','%1'..header,1)
+	end
+	txt=txt:gsub('href="'..prefix..'([^"]+)%.pdf"([^>]*)>PDF<',function(s,d)
+		return [[href="javascript:location.href='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..[[.chm'"]]..d..'>CHM<'
+	end)
+
+	if level>0 then
+		txt=txt:gsub([[(["'])]]..prefix..'index%.html?%1','%1MS-ITS:index.chm::/index.htm%1')
+	end
+
+	txt=txt:gsub('"('..prefix..'[^%.][^"]-)([^"\\/]+.html?[^"\\/]*)"',function(s,e)
+		if e:find('.css',1,true) or e:find('.js',1,true) or s:find('dcommon') then return '"'..s..e..'"' end
+		local t=s:gsub('^'..prefix,'')
+		if t=='' then return '"'..s..e..'"' end
+		return '"MS-ITS:'..t:gsub("/",".").."chm::/"..t..e..'"'
+	end)
+
+	if level==2 and self.parent then
+		txt=txt:gsub([["%.%./([^%.][^"]-)([^"\/]+.html?[^"\/]*)"]],function(s,e)
+			t=self.parent..'/'..s
+			return '"MS-ITS:'..t:gsub("[\\/]+",".").."chm::/"..t:gsub("[\\/]+","/")..e..'"'
+		end)
+	end
+	if not txt then print("file",file,"miss matched!") end
+	self.save(file,txt)
+end
+
+function builder:listdir(base,level,callback)
+	local root=target_doc_root..base
 	local f=io.popen(([[dir /b/s %s*.htm]]):format(root))
 	for file in f:lines() do
-		parseHtm(file,level)
+		local _,depth=file:sub(#root+1):gsub('[\\/]','')
+		self:processHTML(file,level+depth)
 		if callback then callback(file:sub(#target_doc_root+1),root) end
 	end
 	f:close()
+	--if self.errmsg then self:buildIdx() end
 end
 
-function builder.buildHhp(self)
+function builder:buildHhp()
 	local title=self.topic
 	local hhp={string.format([[
 		[OPTIONS]
@@ -378,6 +409,7 @@ function builder.buildHhp(self)
 	local _,depth=self.dir:gsub('[\\/]','')
 	self:listdir(self.dir..'\\',self.depth,append)
 	self.save(self.root..self.name..".hhp",table.concat(hhp))
+	if self.errmsg then self:buildIdx() end
 end
 
 function builder:startBuild()
@@ -385,8 +417,9 @@ function builder:startBuild()
 	if self.dir:find('dcommon') then
 		self:listdir(self.dir..'\\',self.depth)
 	else
-		self:buildIdx()
+		self.errmsg=nil
 		self:buildJson()
+		self:buildIdx()
 		self:buildHhp()
 	end
 end
@@ -408,10 +441,10 @@ function builder.BuildAll(parallel)
 		if not tasks[idx] then tasks[idx]={} end
 		tasks[idx][#tasks[idx]+1]='"'..chm_builder..'" "'..target_doc_root..this.name..'.hhp"'
 	end
-
+	table.insert(task[#task],'"'..chm_builder..'" "'..target_doc_root..'index.hhp"')
 	os.execute('copy /Y html5.css '..target_doc_root..'nav\\css')
 	for i=1,#tasks do
-		builder.save(i..".bat",table.concat(tasks[i],"\n"))
+		builder.save(i..".bat",table.concat(tasks[i],"\n")..'exit\n')
 		if i<=parallel then
 			os.execute('start "Compiling CHMS '..i..'" '..i..'.bat')
 		end
@@ -422,6 +455,9 @@ end
 
 function builder.BuildBatch()
 	local dir=target_doc_root
+	builder.topic='Oracle 12G Documents(E66230_01)'
+	builder.save(dir..'index.htm',builder.read(source_doc_root..'index.htm'))
+	builder.processHTML(builder,dir..'index.htm',0)
 	local hhc=[[	
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <HTML>
@@ -437,8 +473,12 @@ function builder.BuildBatch()
    </OBJECT>
    <UL>
       <LI><OBJECT type="text/sitemap">
-            <param name="Name" value="CHM File List">
+            <param name="Name" value="Portal">
             <param name="Local" value="index.htm">
+          </OBJECT>
+       <OBJECT type="text/sitemap">
+            <param name="Name" value="CHM File Overview">
+            <param name="Local" value="chm.htm">
           </OBJECT>
    </UL>
 ]]
@@ -474,12 +514,12 @@ Compiled File=index.chm
 Contents File=index.hhc
 Index File=index.hhk
 Default Window=main
-Default Topic=ms-its:nav.chm::/nav/portal_booklist.htm
+Default Topic=index.htm
 Default Font=
 Full-text search=Yes
 Auto Index=Yes
 Language=
-Title=Oracle 12G Documents(E66230_01)
+Title=]]..builder.topic..[[
 Create CHI file=No
 Compatibility=1.1 or later
 Error log file=..\_errorlog.txt
@@ -488,11 +528,11 @@ Display compile progress=Yes
 Display compile notes=Yes
 
 [WINDOWS]
-main="Oracle 12G Documents(E66230_01)","index.hhc","index.hhk","ms-its:nav.chm::/nav/portal_booklist.htm","ms-its:nav.chm::/nav/portal_booklist.htm",,,,,0x33520,222,0x101846,[10,10,800,600],0xB0000,,,,,,0
+main="]]..builder.topic..[[","index.hhc","index.hhk","index.htm","index.htm",,,,,0x33520,222,0x101846,[10,10,800,600],0xB0000,,,,,,0
 
 [FILES]
 index.htm
-
+chm.htm
 [MERGE FILES]
 ]]
 	local hhclist={}
@@ -501,9 +541,8 @@ index.htm
 		local n=name:sub(-4)
 		local c=name:sub(1,-5)
 		if n==".hhc" and name~="index.hhc" then
-			local f1=io.open(dir..c..".hhp","r")
-			local title=f1:read("*a"):match("Title=([^\n]+)")
-			f1:close()
+			local txt=builder.read(dir..c..".hhp","r")
+			local title=txt:match("Title=([^\n]+)")
 			hhclist[#hhclist+1]={file=c,title=title,chm=c..".chm"}
 		end
 	end
@@ -520,12 +559,12 @@ index.htm
 	html=table.concat(html,'\n')..'</table><br/><p style="font-size:12px">@2016 by hyee https://github.com/hyee/Oracle-DB-Document-CHM-builder</p>'
 	
 	hhc=hhc..'</BODY></HTML>'
-	builder.save(dir.."index.htm",html)
+	builder.save(dir.."chm.htm",html)
 	builder.save(dir.."index.hhp",hhp)
 	builder.save(dir.."index.hhc",hhc)
 	builder.save(dir.."index.hhk",hhk)
 end
 
-builder:new([[dcommon]],1,1)
---builder.BuildAll(6)
+--builder:new('ADMIN',1,1)
+builder.BuildAll(6)
 --builder.BuildBatch()

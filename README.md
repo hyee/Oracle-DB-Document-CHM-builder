@@ -1,5 +1,16 @@
 # Oracle-DB-Document-CHM-builder
-Generate Oracle database online document into offline CHM file set. For self use and is user-unfriendly. Still in dev.
+Generate Oracle database online document into offline CHM file set. For self use and is user-unfriendly. 
+<br/>Features:
+* One book per CHM file, can be used separately, refer to `index.chm->CHM File Overview`
+* `index.chm` to combine the contents and indexes of all books
+* Supports cross-book searching
+* Portable and no depedency
+
+# Available Prebuild CHM books:
+Refer to https://pan.baidu.com/s/1hrTfE9e
+
+# Screen-shots
+
 
 # Dependencies
 All dependent libraries have been included in this project:
@@ -8,7 +19,7 @@ All dependent libraries have been included in this project:
 * luasys        : https://github.com/tnodir/luasys
 * Json4Lua      : https://github.com/craigmj/json4lua
 
-# Build Steps
+# Build Steps For Further Reference
 * Download Oracle db offline document(http://docs.oracle.com/en/database/) in HTML format and extract as the source
 * Install Microsoft HTML Help Workshop(https://msdn.microsoft.com/en-us/library/ms669985.aspx)
 * Copy files from source into a new destination, excluding pdf/mobi/epub files
