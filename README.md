@@ -10,7 +10,9 @@ Generate Oracle database online documents into offline CHM file set. For self us
 Refer to https://pan.baidu.com/s/1hrTfE9e
 
 # Screen-shots
-
+![startup](img/default.jpg)<br/>
+![search](img/index.jpg)<br/>
+![files](img/filelist.jpg)<br/>
 
 # Dependencies
 All dependent libraries have been included in this project:
