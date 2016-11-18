@@ -148,6 +148,14 @@ function builder:buildIdx()
         tree=self.errmsg
     elseif self.is_javadoc then --process java-doc api
         local text=self.read(self.full_dir..'index-all.html')
+        if not text then
+            local files={}
+            for i=1,30 do
+                files[#files+1]=self.read(self.full_dir..'index-files\\index-'..i..'.html')
+            end
+            text=table.concat(files,'')
+            if text=='' then text=nil end
+        end
         if text then
             local nodes=html.parse(text):select("a")
             local addrs={}
@@ -669,6 +677,6 @@ chm.htm
     builder.save(dir.."index.hhk",hhk)
 end
 
---builder:new('ARPLS',1,1)
+--builder:new('JJUAR',1,1)
 builder.BuildAll(6)
 --builder.BuildBatch()
