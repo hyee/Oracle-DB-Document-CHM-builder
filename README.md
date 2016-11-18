@@ -3,10 +3,10 @@ Generate Oracle database online documents into offline CHM file set. For self us
 <br/>Features:
 * One book per CHM file, can be used separately, refer to `index.chm->CHM File Overview`
 * `index.chm` to combine the contents and indexes of all books
-* Supports cross-book searching
+* Supports cross-books searching
 * Portable and no depedency in all Windows platforms
 
-# Available Prebuilt CHM books:
+# Available Prebuilt CHM Books:
 Refer to https://pan.baidu.com/s/1hrTfE9e
 
 # Screen-shots
@@ -30,7 +30,12 @@ All dependent libraries have been included in this project:
 * Build index file (.hhk) for book `Oracle Error Message`
 * Build project file (.hhp) which includes all needed files
 * Rewrite all HTML files to adjust some elements for offline purpose
-* change some css files to adjust the HTML layouts
+* Change some css files to adjust the HTML layouts
 * Build .bat files for compile purpose
 * Launch .bat files to compile all documents
 * Create index.chm 
+
+# Interfaces
+* Build single book: `builder:new(<sub-dir>,1,1)`
+* Build all books:   `builder.BuildAll(<parallel_degree>)`
+* Build project files for `index.chm`: builder.BuildBatch()
