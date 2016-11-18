@@ -289,6 +289,8 @@ function builder.buildJson(self)
 			self.topic=title
 			if self.toc:find('e13993') or self.toc:find('JAFAN') then
 				self.topic='Oracle Database RAC FAN Events Java API Reference'
+			elseif self.toc:find('JAXML') then
+				self.topic='Oracle Database XML Java API Reference'
 			end
 		end
 		append(1,"<LI><OBJECT type=\"text/sitemap\">")
@@ -634,5 +636,5 @@ chm.htm
 end
 
 --builder:new('nav',1,1)
-builder.BuildAll(6)
---builder.BuildBatch()
+--builder.BuildAll(6)
+builder.BuildBatch()
