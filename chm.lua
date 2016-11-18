@@ -67,7 +67,7 @@ function builder.new(self,dir,build,copy)
         o.title="toc.htm"
     end
 
-    if self.exists(full_dir..'index-all.html') then o.is_javadoc=true end
+    if self.exists(full_dir..'allclasses-frame.html') then o.is_javadoc=true end
     setmetatable(o,self)
     self.__index=self
     if build then 
@@ -147,16 +147,19 @@ function builder:buildIdx()
     if self.errmsg then 
         tree=self.errmsg
     elseif self.is_javadoc then --process java-doc api
-        local nodes=html.parse(self.read(self.full_dir..'index-all.html')):select("a")
-        local addrs={}
-        self.hhk='index-all.html'
-        for idx,a in ipairs(nodes) do
-            if a.attributes.href and a.attributes.href:find('.htm',1,true) then
-                local content=a:getcontent():gsub('<.->',''):gsub('%s+$','')
-                local ref=a.attributes.href:gsub('^%.[\\/]?',''):gsub('/','\\')
-                if ((ref:find('#',1,true) or 0)> 2 or a.attributes.title) and content~="" and not addrs[content..ref] then
-                    addrs[content..ref]=1
-                    tree[#tree+1]={name=content,ref={ref}}
+        local text=self.read(self.full_dir..'index-all.html')
+        if text then
+            local nodes=html.parse():select("a")
+            local addrs={}
+            self.hhk='index-all.html'
+            for idx,a in ipairs(nodes) do
+                if a.attributes.href and a.attributes.href:find('.htm',1,true) then
+                    local content=a:getcontent():gsub('<.->',''):gsub('%s+$','')
+                    local ref=a.attributes.href:gsub('^%.[\\/]?',''):gsub('/','\\')
+                    if ((ref:find('#',1,true) or 0)> 2 or a.attributes.title) and content~="" and not addrs[content..ref] then
+                        addrs[content..ref]=1
+                        tree[#tree+1]={name=content,ref={ref}}
+                    end
                 end
             end
         end
