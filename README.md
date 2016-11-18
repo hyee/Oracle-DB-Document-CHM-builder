@@ -26,9 +26,9 @@ All dependent libraries have been included in this project:
 * Install Microsoft HTML Help Workshop(https://msdn.microsoft.com/en-us/library/ms669985.aspx)
 * Copy files from source into a new destination, excluding pdf/mobi/epub files
 * Build content file (.hhc) based on `target.json`
-* Build index file (.hhk) based on `index.htm` for common books
+* Build index file (.hhk) based on `index.htm` and `glossary.htm` for common books
 * Build index file (.hhk) based on  `index-all.html` for Javadoc API
-* Build index file (.hhk) for book `Oracle Error Messages`,`PL/SQL Packages and Types Reference` and `glossary.htm`
+* Build index file (.hhk) for book `Oracle Error Messages`,`PL/SQL Packages and Types Reference`
 * Build project file (.hhp) which includes all needed files
 * Rewrite all HTML files to adjust some elements for offline purpose
 * Change some css files to adjust the HTML layouts
