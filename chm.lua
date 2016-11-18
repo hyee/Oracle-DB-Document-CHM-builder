@@ -1,10 +1,12 @@
 local source_doc_root=[[f:\BM\E66230_01\]]
 local target_doc_root=[[f:\BM\newdoc12\]]
 local errmsg_book=[[ERRMG]]
+local plsql_package_ref='ARPLS'
 --[[--FOR 11g
 local source_doc_root='f:\\BM\\E11882_01\\'
 local target_doc_root='f:\\BM\\newdoc11\\'
 local errmsg_book='server.112\\e17766'
+local plsql_package_ref='appdev.112\\e40758'
 --]]
 
 require "math"
@@ -161,6 +163,7 @@ function builder:buildIdx()
     else
         local nodes=c:select("dd[class*='ix']")
         local treenode={}
+        if self.plsql_api then tree=self.plsql_api end
         for _,node in ipairs(nodes) do
             local level=tonumber(node.attributes.class:match('l(%d+)ix'))
             if level then
@@ -180,7 +183,7 @@ function builder:buildIdx()
                     for lv=1,level-1 do
                         if #treenode[lv].ref==0 then treenode[lv].ref=n.ref end
                     end
-                else
+                elseif not tree[n.name] then
                     tree[#tree+1]=n
                 end
             end
@@ -193,7 +196,7 @@ function builder:buildIdx()
                 local n={name=li:getcontent():gsub('[%s,]+<.*$',''):gsub('^%s+',''),ref={}}
                 if n.name=="" then return end
                 if level==1 then 
-                    tree[#tree+1]=n
+                    if not tree[n.name] then tree[#tree+1]=n end
                 elseif n.name=="about" then
                     level,n=level-1,treenode[level-1]
                 else
@@ -320,14 +323,25 @@ function builder:buildJson()
     end
     local root=json.decode(txt)
     local last_node
+    local plsql_api
     local function travel(node,level)
         if node.t then
             node.t=node.t:gsub("([\1-\127\194-\244][\128-\193])", ''):gsub('%s*|+%s*',''):gsub('&.-;',''):gsub('\153',"'")
-
             last_node=node.h
             append(level+1,"<LI><OBJECT type=\"text/sitemap\">")
             append(level+2,([[<param name="Name"  value="%s">]]):format(node.t))
             append(level+2,([[<param name="Local" value="%s">]]):format(self.dir..'\\'..node.h))
+            if self.dir==plsql_package_ref then
+                local first=node.t:match('^[^%s]+')
+                if not plsql_api then
+                    plsql_api={}
+                    self.plsql_api=plsql_api
+                end
+                if first:upper()==first and (level==1 or level==3) then --index package name and method
+                    plsql_api[#plsql_api+1]={name=node.t,ref={node.h}}
+                    plsql_api[node.t]=1
+                end
+            end
             if node.c then
                 append(level+1,"</OBJECT><UL>") 
                 for index,child in ipairs(node.c) do
@@ -353,7 +367,6 @@ function builder:buildJson()
 
     end
     travel(root.docs[1],0)
-    
     append(0,"</UL></BODY></HTML>")
     self.save(self.root..self.hhc,table.concat(hhc))
     self.topic=root.docs[1].t
@@ -653,6 +666,6 @@ chm.htm
     builder.save(dir.."index.hhk",hhk)
 end
 
---builder:new('CNCPT',1,1)
+--builder:new('ARPLS',1,1)
 builder.BuildAll(6)
 --builder.BuildBatch()
