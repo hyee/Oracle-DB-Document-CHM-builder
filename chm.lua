@@ -149,7 +149,7 @@ function builder:buildIdx()
     elseif self.is_javadoc then --process java-doc api
         local text=self.read(self.full_dir..'index-all.html')
         if text then
-            local nodes=html.parse():select("a")
+            local nodes=html.parse(text):select("a")
             local addrs={}
             self.hhk='index-all.html'
             for idx,a in ipairs(nodes) do
