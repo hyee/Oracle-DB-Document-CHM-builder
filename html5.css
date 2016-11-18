@@ -5,6 +5,7 @@
 body {
 	font-family:  "Helvetica Neue", "Neue Helvetica", Arial, sans-serif;
 	font-size: 14px;
+    padding:20px
 	/*margin-top: 50px;
 	margin-left: 20px;*/
 }
@@ -44,8 +45,6 @@ display:block;
 .IND {
     line-height: 1.5;
     width: 74%;
-    padding-right: 2rem;
-    padding-top: 20px;
 }
 .secnum {
 	color: #808080;
@@ -580,19 +579,7 @@ html:not([ie8andbelow]) .IND table {
     z-index: 2;
 
 }
-#NAV #searchField {
-	display: inline;
-	width: 85%;
-	height: 28px;
-	border: 1px solid #dfe4e7;
-	border-right: 0 none;
-	background-color: #fcfdfe;
-	box-shadow: none;
-	font-size:12px;
-	padding: 0;
-	padding-left: 0.5em;
-	margin: 0;
-}
+
 
 #CONTENT #NAV form {
 	margin-bottom: 1rem;

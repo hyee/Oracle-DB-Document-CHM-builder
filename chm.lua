@@ -39,6 +39,7 @@ function builder.new(self,dir,build,copy)
 	end
 	local full_dir=target_doc_root..dir..'\\'
 	local o={
+		ver=errmsg_book=='ERRMG' and '12c' or '11g',
 		toc=full_dir..'toc.htm',
 		json=full_dir..'target.json',
 		idx=full_dir..'index.htm',
@@ -302,7 +303,8 @@ function builder.buildJson(self)
 	local last_node
 	local function travel(node,level)
 		if node.t then
-			node.t=node.t:gsub("([\1-\127\194-\244][\128-\193])", ''):gsub('%s*|+%s*',''):gsub('&.-;','')
+			node.t=node.t:gsub("([\1-\127\194-\244][\128-\193])", ''):gsub('%s*|+%s*',''):gsub('&.-;',''):gsub('\153',"'")
+
 			last_node=node.h
 			append(level+1,"<LI><OBJECT type=\"text/sitemap\">")
 			append(level+2,([[<param name="Name"  value="%s">]]):format(node.t))
@@ -372,18 +374,18 @@ function builder:processHTML(file,level)
 	local dcommon_path=string.rep('../',level)..'dcommon'
 	local header=[[<table summary="" cellspacing="0" cellpadding="0">
 		<tr>
-		<td align="left" valign="top"><b style="color:#326598;font-size:24px">%s</b></td>
-		<td width="70" align="center" valign="top"><a href="toc.htm"><img width="24" height="24" src="%s/gifs/doclib.gif" alt="Go to Documentation Home" /><br />
-		<span class="icon">Content</span></a></td>
+		<td align="left" valign="top"><b style="color:#326598;font-size:12px">%s<br/><i style="color:black">%s  Release 2</i></b></td>
 		<td width="60" align="center" valign="top"><a href="index.htm"><img width="24" height="24" src="%s/gifs/index.gif" alt="Go to Index" /><br />
 		<span class="icon">Index</span></a></td>
+		<td width="70" align="center" valign="top"><a href="toc.htm"><img width="24" height="24" src="%s/gifs/doclib.gif" alt="Go to Documentation Home" /><br />
+		<span class="icon">Content</span></a></td>
 		<td width="80" align="center" valign="top"><a href="MS-ITS:nav.chm::/nav/portal_booklist.htm"><img width="24" height="24" src="%s/gifs/booklist.gif" alt="Go to Book List" /><br />
 		<span class="icon">Book List</span></a></td>
 		<td width="80" align="center" valign="top"><a href="MS-ITS:nav.chm::/nav/mindx.htm"><img width="24" height="24" src="%s/gifs/masterix.gif" alt="Go to Master Index" /><br />
 		<span class="icon">Master Index</span></a></td>
 		</tr>
 		</table>]]
-	header=header:format(self.topic:gsub("Oracle","Oracle&reg;"),dcommon_path,dcommon_path,dcommon_path,dcommon_path)
+	header=header:format(self.topic:gsub("Oracle","Oracle&reg;"),(self.ver=='12c' and '12c' or '11g'),dcommon_path,dcommon_path,dcommon_path,dcommon_path)
 	txt,count=txt:gsub("\n(%s+parent%.document%.title)","\n//%1"):gsub("&amp;&amp;","&&")
 	txt,count=txt:gsub('%s*<header>.-</header>%s*','')
 	txt=txt:gsub('%s*<footer>.*</footer>%s*','')
@@ -624,6 +626,6 @@ chm.htm
 	builder.save(dir.."index.hhk",hhk)
 end
 
---builder:new('TDPPT',1,1)
+--builder:new('ADMIN',1,1)
 builder.BuildAll(6)
 --builder.BuildBatch()
