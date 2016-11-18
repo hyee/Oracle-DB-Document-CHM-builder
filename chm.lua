@@ -164,7 +164,7 @@ function builder:buildIdx()
         for _,node in ipairs(nodes) do
             local level=tonumber(node.attributes.class:match('l(%d+)ix'))
             if level then
-                local n={name=node:getcontent():gsub('[%s,]*','') ,ref={}}
+                local n={name=node:getcontent():gsub('[%s,]*<.*','') ,ref={}}
                 if n.name:find('<em>See</em>',1,true) then n.name=n.name:gsub('%.?%s*<em>.+','') end
                 n.name=n.name:gsub('<.->','')
                 local found=false
