@@ -1413,6 +1413,7 @@ input[type="checkbox"] + label, input[type="radio"] + label {
     /*width: 350px;*/
     /*padding-top: 40px; Commenting for extra space between nav and content*/
     padding-bottom: 40px;
+    margin-top: -30px; /* Adding for removing extra space between nav and content*/
 }
 #leftsidebar {
     /*width: 150px;*/

@@ -409,12 +409,14 @@ function builder:processHTML(file,level)
 		if e:find('.css',1,true) or e:find('.js',1,true) or s:find('dcommon') then return '"'..s..e..'"' end
 		local t=s:gsub('^'..prefix,'')
 		if t=='' then return '"'..s..e..'"' end
+		e=e:gsub('(html?)%?[^#]+','%1')
 		return '"MS-ITS:'..t:gsub("/",".").."chm::/"..t..e..'"'
 	end)
 
 	if level==2 and self.parent then
 		txt=txt:gsub([["%.%./([^%.][^"]-)([^"\/]+.html?[^"\/]*)"]],function(s,e)
 			t=self.parent..'/'..s
+			e=e:gsub('(html?)%?[^#]+','%1')
 			return '"MS-ITS:'..t:gsub("[\\/]+",".").."chm::/"..t:gsub("[\\/]+","/")..e..'"'
 		end)
 	end
@@ -498,7 +500,12 @@ function builder.BuildAll(parallel)
 		local idx=math.fmod(i-1,parallel)+1
 		if i==1 then idx=parallel+1 end -- for nav
 		if not tasks[idx] then tasks[idx]={} end
-		tasks[idx][#tasks[idx]+1]='"'..chm_builder..'" "'..target_doc_root..this.name..'.hhp"'
+		local obj='"'..chm_builder..'" "'..target_doc_root..this.name..'.hhp"'
+		if book:find(errmsg_book,1,true) then
+			tasks[idx][#tasks[idx]+1]=obj
+		else
+			table.insert(tasks[idx],1,obj)
+		end
 	end
 	table.insert(tasks[#tasks],'"'..chm_builder..'" "'..target_doc_root..'index.hhp"')
 	os.execute('copy /Y html5.css '..target_doc_root..'nav\\css')
@@ -626,6 +633,6 @@ chm.htm
 	builder.save(dir.."index.hhk",hhk)
 end
 
---builder:new('ADMIN',1,1)
+--builder:new('nav',1,1)
 builder.BuildAll(6)
 --builder.BuildBatch()
