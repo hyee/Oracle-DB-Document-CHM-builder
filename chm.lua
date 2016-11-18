@@ -636,5 +636,5 @@ chm.htm
 end
 
 --builder:new('nav',1,1)
---builder.BuildAll(6)
-builder.BuildBatch()
+builder.BuildAll(6)
+--builder.BuildBatch()

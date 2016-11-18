@@ -7,7 +7,8 @@ Generate Oracle database online documents into offline CHM file set. For self us
 * Portable and no depedency in all Windows platforms
 
 # Available Prebuilt CHM Books:
-Refer to https://pan.baidu.com/s/1hrTfE9e
+Refer to https://pan.baidu.com/s/1hrTfE9e <br/> or from OneDrive: https://1drv.ms/f/s!Akx26bLmnboFki7M-Pkf39TpWoRc
+
 
 # Screen-shots
 ![startup](img/default.jpg)<br/>
@@ -38,4 +39,4 @@ All dependent libraries have been included in this project:
 # Interfaces
 * Build single book: `builder:new(<sub-dir>,1,1)`
 * Build all books:   `builder.BuildAll(<parallel_degree>)`
-* Build project files for `index.chm`: builder.BuildBatch()
+* Build project files for `index.chm`: `builder.BuildBatch()`
