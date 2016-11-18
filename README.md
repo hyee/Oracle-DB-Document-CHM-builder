@@ -7,7 +7,7 @@ Generate Oracle database online documents into offline CHM file set. For self us
 * Portable and no depedency in all Windows platforms
 
 # Available Prebuilt CHM Books:
-Refer to https://pan.baidu.com/s/1hrTfE9e <br/> or from OneDrive: https://1drv.ms/f/s!Akx26bLmnboFki7M-Pkf39TpWoRc
+Refer to https://pan.baidu.com/s/1hrTfE9e <br/> or OneDrive: https://1drv.ms/f/s!Akx26bLmnboFki7M-Pkf39TpWoRc
 
 
 # Screen-shots
@@ -29,7 +29,7 @@ All dependent libraries have been included in this project:
 * Build index file (.hhk) based on `index.htm` and `glossary.htm` for common books
 * Build index file (.hhk) based on  `index-all.html` for Javadoc API
 * Build index file (.hhk) for book `Oracle Error Messages`,`PL/SQL Packages and Types Reference`
-* Build project file (.hhp) which includes all needed files
+* Build project file (.hhp) to include all needed files
 * Rewrite all HTML files to adjust some elements for offline purpose
 * Change some css files to adjust the HTML layouts
 * Build .bat files for compile purpose

@@ -151,10 +151,10 @@ function builder:buildIdx()
         local addrs={}
         self.hhk='index-all.html'
         for idx,a in ipairs(nodes) do
-            if a.attributes.href then
+            if a.attributes.href and a.attributes.href:find('.htm',1,true) then
                 local content=a:getcontent():gsub('<.->',''):gsub('%s+$','')
                 local ref=a.attributes.href:gsub('^%.[\\/]?',''):gsub('/','\\')
-                if (ref:find('#',1,true) or 0)> 2 and content~="" and not addrs[content..ref] then
+                if ((ref:find('#',1,true) or 0)> 2 or a.attributes.title) and content~="" and not addrs[content..ref] then
                     addrs[content..ref]=1
                     tree[#tree+1]={name=content,ref={ref}}
                 end
