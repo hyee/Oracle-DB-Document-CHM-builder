@@ -36,7 +36,7 @@ All dependent libraries have been included in this project:
 * Launch .bat files to compile all documents
 * Create index.chm 
 
-# Interfaces
+# Interfaces(file `chm.lua`)
 * Build single book: `builder:new(<sub-dir>,1,1)`
 * Build all books:   `builder.BuildAll(<parallel_degree>)`
 * Build project files for `index.chm`: `builder.BuildBatch()`
