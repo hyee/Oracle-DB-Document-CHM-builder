@@ -9,11 +9,44 @@ local errmsg_book='server.112\\e17766'
 local plsql_package_ref='appdev.112\\e40758'
 --]]
 
-require "math"
+--[[
+    (c)2016 by hyee, MIT license, https://github.com/hyee/Oracle-DB-Document-CHM-builder
+
+    .hhc/.hhk/.hhp files are all created under the root path
+
+    .hhc => Content rules(buildJson): target.json
+    .hhk => Index rules(buildIdx):
+        1. Common books => index.htm:
+            dl -> <dd class='*ix'>content,<a href="link">...<a>
+            div -> ul -> li -> [ul|a]
+        2. Javadoc books(contains 'allclasses-frame.html') => index-all.html, index-files\index-[1-30].html:
+            <a (href="*.html#<id>" | href="*.html" title=)>content</a>
+        3. Glossary => glossary.htm
+            <p class="glossterm">[content]<a (name=|id=)>[content]</a></p>
+        4. Book Oracle Error messages(self.errmsg):
+            dt -> <a (name=|id=)>
+        5. Book PL/SQL Packages Reference(self.plsql_api):
+            target.json -> level 1 and 3 -> First word in upper-case
+    .hhp => Project rules(buildHhp):
+        1. Include all files
+        2. Enable options: Create binary TOC/Create binary indexes/Compile full-text search/show MSDN menu
+    HTML file substitution rules(processHTML):
+        1. For javadoc, only replace all &lt/gt/amp as >/</& in javascript due to running into errors
+        2. For others:
+            1). Remove all <script>/<a[href="#BEGIN"]>/<header>/<footer> elements, used customized header instead
+            2). For all 'a' element, remove all 'onclick' and 'target' attributes
+            3). For all links that point to the top 'index.htm', replace as 'MS-ITS:index.chm::/index.htm'
+            4). For all links that point to other books:
+                a. Replace '.htm?<parameters>' as '.htm'
+                b. Caculate the <relative_path> based on the root path and replace '\' as '.', assign as the <file_name>
+                c. Final address is 'MS-ITS:<file_name>.chm::/<relative_path>/<html_file(#...)?>'
+    Book list rules: all directories that contains 'toc.htm'
+
+--]]
+local chm_builder=[[C:\Program Files (x86)\HTML Help Workshop\hhc.exe]]
 local html=require("htmlparser")
 local json=require("json")
-local io,pairs,ipairs=io,pairs,ipairs
-local chm_builder=[[C:\Program Files (x86)\HTML Help Workshop\hhc.exe]]
+local io,pairs,ipairs,math=io,pairs,ipairs,math
 
 local reps={
     ["\""]="&quot;",
@@ -173,8 +206,7 @@ function builder:buildIdx()
         end
     else
         local nodes=c:select("dd[class*='ix']")
-        local treenode={}
-        if self.plsql_api then tree=self.plsql_api end
+        local treenode,plsql_api={},self.plsql_api or {}
         for _,node in ipairs(nodes) do
             local level=tonumber(node.attributes.class:match('l(%d+)ix'))
             if level then
@@ -194,8 +226,8 @@ function builder:buildIdx()
                     for lv=1,level-1 do
                         if #treenode[lv].ref==0 then treenode[lv].ref=n.ref end
                     end
-                elseif not tree[n.name] then
-                    tree[#tree+1]=n
+                else
+                    tree[#tree+1],plsql_api[n.name]=n,nil
                 end
             end
         end
@@ -207,7 +239,7 @@ function builder:buildIdx()
                 local n={name=li:getcontent():gsub('[%s,]+<.*$',''):gsub('^%s+',''),ref={}}
                 if n.name=="" then return end
                 if level==1 then 
-                    if not tree[n.name] then tree[#tree+1]=n end
+                    tree[#tree+1],plsql_api[n.name]=n,nil
                 elseif n.name=="about" then
                     level,n=level-1,treenode[level-1]
                 else
@@ -236,6 +268,8 @@ function builder:buildIdx()
                 end
             end
         end
+
+        for _,n in pairs(plsql_api) do tree[#tree+1]=n end
         self:buildGlossary(tree)
     end
 
@@ -349,8 +383,7 @@ function builder:buildJson()
                     self.plsql_api=plsql_api
                 end
                 if first:upper()==first and (level==1 or level==3) then --index package name and method
-                    plsql_api[#plsql_api+1]={name=node.t,ref={node.h}}
-                    plsql_api[node.t]=1
+                    plsql_api[node.t]={name=node.t,ref={node.h}}
                 end
             end
             if node.c then
@@ -433,7 +466,7 @@ function builder:processHTML(file,level)
     txt,count=txt:gsub("\n(%s+parent%.document%.title)","\n//%1"):gsub("&amp;&amp;","&&")
     txt,count=txt:gsub('%s*<header>.-</header>%s*','')
     txt=txt:gsub('%s*<footer>.*</footer>%s*','')
-    txt=txt:gsub([[%s*<script.-<%/script>%s*]],'')
+    txt=txt:gsub([[(%s*<script.-<%/script>%s*)]],'')
     txt=txt:gsub('%s*<a href="#BEGIN".-</a>%s*','')
     txt=txt:gsub('(<[^>]*) onload=".-"','%1')
     txt=txt:gsub([[(<a [^>]*)onclick=(["'"]).-%2]],'%1')
@@ -677,6 +710,6 @@ chm.htm
     builder.save(dir.."index.hhk",hhk)
 end
 
---builder:new('JJUAR',1,1)
+--builder:new('ARPLS',1,1)
 builder.BuildAll(6)
 --builder.BuildBatch()
