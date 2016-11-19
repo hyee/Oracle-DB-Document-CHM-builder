@@ -1,12 +1,11 @@
 local source_doc_root=[[f:\BM\E66230_01\]]
 local target_doc_root=[[f:\BM\newdoc12\]]
 local errmsg_book=[[ERRMG]]
-local plsql_package_ref='ARPLS'
+
 --[[--FOR 11g
 local source_doc_root='f:\\BM\\E11882_01\\'
 local target_doc_root='f:\\BM\\newdoc11\\'
 local errmsg_book='server.112\\e17766'
-local plsql_package_ref='appdev.112\\e40758'
 --]]
 
 --[[
@@ -25,8 +24,8 @@ local plsql_package_ref='appdev.112\\e40758'
             <p class="glossterm">[content]<a (name=|id=)>[content]</a></p>
         4. Book Oracle Error messages(self.errmsg):
             dt -> <a (name=|id=)>
-        5. Book PL/SQL Packages Reference(self.plsql_api):
-            target.json -> level 1 and 3 -> First word in upper-case
+        5. Book PL/SQL Packages Reference and APLEX API(self.plsql_api):
+            target.json -> First word in upper-case
     .hhp => Project rules(buildHhp):
         1. Include all files
         2. Enable options: Create binary TOC/Create binary indexes/Compile full-text search/show MSDN menu
@@ -44,6 +43,7 @@ local plsql_package_ref='appdev.112\\e40758'
 
 --]]
 local chm_builder=[[C:\Program Files (x86)\HTML Help Workshop\hhc.exe]]
+local plsql_package_ref={ARPLS=1,AEAPI=1,['appdev.112\\e40758']=1,['appdev.112\\e12510']=1}
 local html=require("htmlparser")
 local json=require("json")
 local io,pairs,ipairs,math=io,pairs,ipairs,math
@@ -170,13 +170,13 @@ function builder:buildIdx()
 
     local c=self:getContent(self.idx)
     if not c then c=self:getContent(self.idx..'l') end
-    if not c and not self.errmsg and not self.is_javadoc then return end
+    if not c and not self.errmsg and not self.is_javadoc and not self.plsql_api then return end
     
     local function append(level,txt)
         hhk[#hhk+1]='\n    '..string.rep("  ",level).. txt
     end
 
-    local tree={}
+    local tree,plsql_api={},self.plsql_api or {}
     if self.errmsg then 
         tree=self.errmsg
     elseif self.is_javadoc then --process java-doc api
@@ -204,9 +204,9 @@ function builder:buildIdx()
                 end
             end
         end
-    else
+    elseif c then
         local nodes=c:select("dd[class*='ix']")
-        local treenode,plsql_api={},self.plsql_api or {}
+        local treenode={}
         for _,node in ipairs(nodes) do
             local level=tonumber(node.attributes.class:match('l(%d+)ix'))
             if level then
@@ -268,10 +268,9 @@ function builder:buildIdx()
                 end
             end
         end
-
-        for _,n in pairs(plsql_api) do tree[#tree+1]=n end
         self:buildGlossary(tree)
     end
+    for _,n in pairs(plsql_api) do tree[#tree+1]=n end
 
     local function travel(level,node,parent)
         if not parent then
@@ -369,6 +368,7 @@ function builder:buildJson()
     local root=json.decode(txt)
     local last_node
     local plsql_api
+    if plsql_package_ref[self.dir] then print('Found PL/SQL API and indexing the content.') end
     local function travel(node,level)
         if node.t then
             node.t=node.t:gsub("([\1-\127\194-\244][\128-\193])", ''):gsub('%s*|+%s*',''):gsub('&.-;',''):gsub('\153',"'")
@@ -376,13 +376,13 @@ function builder:buildJson()
             append(level+1,"<LI><OBJECT type=\"text/sitemap\">")
             append(level+2,([[<param name="Name"  value="%s">]]):format(node.t))
             append(level+2,([[<param name="Local" value="%s">]]):format(self.dir..'\\'..node.h))
-            if self.dir==plsql_package_ref then
+            if plsql_package_ref[self.dir] then
                 local first=node.t:match('^[^%s]+')
                 if not plsql_api then
                     plsql_api={}
                     self.plsql_api=plsql_api
                 end
-                if first:upper()==first and (level==1 or level==3) then --index package name and method
+                if first:upper()==first and level<4 then --index package name and method
                     plsql_api[node.t]={name=node.t,ref={node.h}}
                 end
             end
@@ -710,6 +710,6 @@ chm.htm
     builder.save(dir.."index.hhk",hhk)
 end
 
---builder:new('ARPLS',1,1)
+--builder:new('AEAPI',1,1)
 builder.BuildAll(6)
 --builder.BuildBatch()

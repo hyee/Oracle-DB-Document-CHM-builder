@@ -28,7 +28,7 @@ All dependent libraries have been included in this project:
 * Build content file (.hhc) based on `target.json`
 * Build index file (.hhk) based on `index.htm` and `glossary.htm` for common books
 * Build index file (.hhk) based on  `index-all.html` for Javadoc API
-* Build index file (.hhk) for book `Oracle Error Messages`,`PL/SQL Packages and Types Reference`
+* Build index file (.hhk) for book `Oracle Error Messages`/`PL/SQL Packages and Types Reference`/`APEX API`
 * Build project file (.hhp) to include all needed files
 * Rewrite all HTML files to adjust some elements for offline purpose
 * Change some css files to adjust the HTML layouts
