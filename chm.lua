@@ -316,7 +316,7 @@ function builder:buildJson()
       </HEAD>
       <BODY>
         <OBJECT type="text/site properties">
-          <param name="Window Styles" value="0x800025">
+          <param name="Window Styles" value="0x800225">
           <param name="comment" value="title:Online Help">
           <param name="comment" value="base:toc.htm">
         </OBJECT><UL>]]}
@@ -612,7 +612,7 @@ function builder.BuildBatch()
 </head>
 <body>
    <OBJECT type="text/site properties">
-     <param name="Window Styles" value="0x800025">
+     <param name="Window Styles" value="0x800225">
      <param name="comment" value="title:Online Help">
      <param name="comment" value="base:index.htm">
    </OBJECT>
