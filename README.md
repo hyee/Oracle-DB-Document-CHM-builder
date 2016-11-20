@@ -1,5 +1,5 @@
 # Oracle-DB-Document-CHM-builder
-Generate Oracle database online documents into offline CHM file set. 
+Generate Oracle database 11g/12c online documentations into offline CHM file set. 
 <br/>Features:
 * One book per CHM file, can be used separately, refer to `index.chm->CHM File Overview`
 * `index.chm` to combine the contents and indexes of all books
@@ -38,6 +38,6 @@ All dependent libraries have been included in this project:
 * Create index.chm 
 
 # Interfaces(file chm.lua)
-* Build single book: `chm.bat <sub-dir>` or `builder:new(<sub-dir>,true,true)`
+* Build single book: `chm.bat <sub-dir>` or `builder.new(<sub-dir>,true,true)`
 * Build all books:   `chm.bat <parallel_degree>` or `builder.BuildAll(<parallel_degree>)`
 * Build project files for `index.chm`: `chm.bat 0` or  `builder.BuildBatch()`

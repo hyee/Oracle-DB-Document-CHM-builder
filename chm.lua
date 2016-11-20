@@ -21,9 +21,9 @@ local target_doc_root='f:\\BM\\newdoc11\\'
         3. nav\[sql-keywords|catalog_views]*.htm -> key.json:
             <span> -> <b><a>
         4. Glossary => glossary.htm
-            <p class="glossterm">[content]<a[name|id])>[content]</a></p>
+            <p[class="glossterm"]>[content]<a[name|id])>[content]</a></p>
         5. Book Oracle Error messages(self.errmsg):
-            <dt> -> <a[name|id]>
+            <dt> -> (<span>->)? <a[name|id]>
         6. Book PL/SQL Packages Reference and APLEX API:
             target.json -> First word in upper-case
     .hhp => Project rules(buildHhp):
@@ -609,9 +609,9 @@ end
 function builder:startBuild()
     print(string.rep('=',100).."\nBuilding "..self.dir..'...')
     self.filelist={}
+    if not self.dir:find('dcommon') then self:buildJson() end 
     self:listdir(self.dir..'\\',self.depth,function(item) table.insert(self.filelist,item) end)
     if not self.dir:find('dcommon') then
-        self:buildJson()
         self:buildIdx()
         self:buildHhp()
     end
@@ -626,6 +626,7 @@ function builder.BuildAll(parallel)
         if name~="nav" then book_list[#book_list+1]=name end
     end
     fd:close()
+    os.remove(global_key_file)
     builder.new('dcommon',true,true)
     for i,book in ipairs(book_list) do
         local this=builder.new(book,true,true)
