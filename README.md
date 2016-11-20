@@ -1,5 +1,5 @@
 # Oracle-DB-Document-CHM-builder
-Generate Oracle database online documents into offline CHM file set. For self use and is user-unfriendly. 
+Generate Oracle database online documents into offline CHM file set. 
 <br/>Features:
 * One book per CHM file, can be used separately, refer to `index.chm->CHM File Overview`
 * `index.chm` to combine the contents and indexes of all books
@@ -27,7 +27,8 @@ All dependent libraries have been included in this project:
 * Copy files from source into a new destination, excluding pdf/mobi/epub files
 * Build content file (.hhc) based on `target.json`
 * Build index file (.hhk) based on `index.htm` and `glossary.htm` for common books
-* Build index file (.hhk) based on  `index-all.html` for Javadoc API
+* Build index file (.hhk) based on `index-all.html` for Javadoc API
+* Build index file (.hhk) based on `nav\sql-keywords*.htm` and `nav\catalog_views*.htm`
 * Build index file (.hhk) for book `Oracle Error Messages`/`PL/SQL Packages and Types Reference`/`APEX API`
 * Build project file (.hhp) to include all needed files
 * Rewrite all HTML files to adjust some elements for offline purpose
@@ -36,7 +37,7 @@ All dependent libraries have been included in this project:
 * Launch .bat files to compile all documents
 * Create index.chm 
 
-# Interfaces(file `chm.lua`)
-* Build single book: `builder:new(<sub-dir>,1,1)`
-* Build all books:   `builder.BuildAll(<parallel_degree>)`
-* Build project files for `index.chm`: `builder.BuildBatch()`
+# Interfaces(file chm.lua)
+* Build single book: `chm.bat <sub-dir>` or `builder:new(<sub-dir>,true,true)`
+* Build all books:   `chm.bat <parallel_degree>` or `builder.BuildAll(<parallel_degree>)`
+* Build project files for `index.chm`: `chm.bat 0` or  `builder.BuildBatch()`
