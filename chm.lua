@@ -179,9 +179,8 @@ function builder:buildIdx()
       <BODY><UL>]]}
 
     local c=self:getContent(self.idx)
-    if not c then c=self:getContent(self.idx..'l') end
     if not c and not self.errmsg and not self.is_javadoc and not global_keys[self.name] then return end
-    
+
     local function append(level,txt)
         hhk[#hhk+1]='\n    '..string.rep("  ",level).. txt
     end
@@ -220,7 +219,8 @@ function builder:buildIdx()
             local level=tonumber(node.attributes.class:match('l(%d+)ix'))
             if level then
                 local content=node:getcontent():gsub('%s+$','')
-                local n={name=content:gsub('[%s,%.]*<.*','') ,ref={}}
+
+                local n={name=content:gsub('[%s,%.]*<.*>.*$','') ,ref={}}
                 for _,a in ipairs(node:select("a")) do
                     n.ref[#n.ref+1]=a.attributes.href
                 end
@@ -231,7 +231,7 @@ function builder:buildIdx()
                         for lv=1,level-1 do
                             if #treenode[lv].ref==0 then treenode[lv].ref=n.ref end
                         end
-                    elseif content:find('>See<',1,true) and #treenode[level-1].ref==0 then
+                    elseif content:lower():find('>see<',1,true) and #treenode[level-1].ref==0 then
                         treenode[level-1].ref[1]='#SEE#'..content:gsub('<.->',''):gsub('^%s*See%s*','')
                     end
                 else
@@ -245,7 +245,7 @@ function builder:buildIdx()
             local function access_childs(li,level)
                 if li.name~="li" or not li.nodes[1] then return end
                 local content=li:getcontent():gsub('^%s+','')
-                local n={name=content:gsub('[%s,]+<.*$',''),ref={}}
+                local n={name=content:gsub('[%s,]+<.*>.*$',''),ref={}}
                 if n.name=="" then return end
                 if level==1 then 
                     tree[#tree+1],sql_keys[n.name:upper()]=n,nil
@@ -783,11 +783,34 @@ function builder.BuildBatch()
     builder.save(dir.."index.hhk",hhk)
 end
 
+function builder.scanInvalidLinks()
+    local max_books=3
+    local f=io.popen('dir /s/b "'..target_doc_root..'*errorlog.txt"')
+    for file in f:lines() do
+        local filelist={}
+        local txt,err=builder.read(file)
+        if txt then
+            for book in txt:gmatch('[\n\r]([%w%.]+)\\%w') do
+                if not filelist[book] then
+                    filelist[book],filelist[#filelist+1]=book,book
+                end
+                if #filelist>max_books then
+                    print('Detected book '..book..' may contains invalid links: '..table.concat(filelist,','))
+                end
+            end
+        else
+            print(err)
+        end
+    end
+end
+
 local arg={...}
 if arg[1] then
     local p=tonumber(arg[1])
     if p==0 then
         builder.BuildBatch()
+    elseif p==-1 then
+        builder.scanInvalidLinks()
     elseif p and p>0 then 
         builder.BuildAll(p)
     else

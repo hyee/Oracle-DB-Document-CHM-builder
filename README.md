@@ -38,6 +38,7 @@ All dependent libraries have been included in this project:
 * Create index.chm 
 
 # Interfaces(file chm.lua)
-* Build single book: `chm.bat <sub-dir>` or `builder.new(<sub-dir>,true,true)`
-* Build all books:   `chm.bat <parallel_degree>` or `builder.BuildAll(<parallel_degree>)`
-* Build project files for `index.chm`: `chm.bat 0` or  `builder.BuildBatch()`
+* Build single book: `chm <sub-dir>` or `builder.new(<sub-dir>,true,true)`
+* Build all books:   `chm <parallel_degree>` or `builder.BuildAll(<parallel_degree>)`
+* Build project files for `index.chm`: `chm 0` or  `builder.BuildBatch()`
+* Verify the logs to see if a CHM has convered multiple books: `chm -1` or `builder.scanInvalidLinks()`
