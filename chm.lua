@@ -219,24 +219,23 @@ function builder:buildIdx()
         for _,node in ipairs(nodes) do
             local level=tonumber(node.attributes.class:match('l(%d+)ix'))
             if level then
-                local n={name=node:getcontent():gsub('[%s,]*<.*','') ,ref={}}
-                if n.name:find('<em>See</em>',1,true) then n.name=n.name:gsub('%.?%s*<em>.+','') end
-                n.name=n.name:gsub('<.->','')
-                local found=false
-                for _,a in ipairs(node.nodes) do
-                    if a.name=='a' then
-                        if not found then found=true end
-                        n.ref[#n.ref+1]=a.attributes.href
-                    end
+                local content=node:getcontent():gsub('%s+$','')
+                local n={name=content:gsub('[%s,%.]*<.*','') ,ref={}}
+                for _,a in ipairs(node:select("a")) do
+                    n.ref[#n.ref+1]=a.attributes.href
                 end
                 treenode[level]=n
                 if level>1 then
                     table.insert(treenode[level-1],n)
-                    for lv=1,level-1 do
-                        if #treenode[lv].ref==0 then treenode[lv].ref=n.ref end
+                    if #n.ref>0 then
+                        for lv=1,level-1 do
+                            if #treenode[lv].ref==0 then treenode[lv].ref=n.ref end
+                        end
+                    elseif content:find('>See<',1,true) and #treenode[level-1].ref==0 then
+                        treenode[level-1].ref[1]='#SEE#'..content:gsub('<.->',''):gsub('^%s*See%s*','')
                     end
                 else
-                    tree[#tree+1],sql_keys[n.name]=n,nil
+                    tree[#tree+1],sql_keys[n.name:upper()]=n,nil
                 end
             end
         end
@@ -245,10 +244,11 @@ function builder:buildIdx()
             local uls=c:select("div > ul")
             local function access_childs(li,level)
                 if li.name~="li" or not li.nodes[1] then return end
-                local n={name=li:getcontent():gsub('[%s,]+<.*$',''):gsub('^%s+',''),ref={}}
+                local content=li:getcontent():gsub('^%s+','')
+                local n={name=content:gsub('[%s,]+<.*$',''),ref={}}
                 if n.name=="" then return end
                 if level==1 then 
-                    tree[#tree+1],sql_keys[n.name]=n,nil
+                    tree[#tree+1],sql_keys[n.name:upper()]=n,nil
                 elseif n.name=="about" then
                     level,n=level-1,treenode[level-1]
                 else
@@ -261,8 +261,15 @@ function builder:buildIdx()
                     for _,a in ipairs(li:select("a")) do
                         n.ref[#n.ref+1]=a.attributes.href
                     end
-                    for lv=1,level-1 do
-                        if #treenode[lv].ref==0 then treenode[lv].ref=n.ref end
+
+                    if level>1 and #n.ref==0 and #treenode[level-1].ref==0 then
+                        if content:lower():find('see.*:') then
+                            treenode[level-1].ref[1]='#SEE#'..n.name:gsub('<.->',''):gsub('^.-:%s*','')
+                        end
+                    else
+                        for lv=1,level-1 do
+                            if #treenode[lv].ref==0 then treenode[lv].ref=n.ref end
+                        end
                     end
                 else
                     for _,child in ipairs(li.nodes[1].nodes) do
@@ -287,7 +294,7 @@ function builder:buildIdx()
     end
 
     for name,ref in pairs(sql_keys) do 
-        tree[#tree+1]={name=name,ref={ref}}
+        tree[#tree+1]={name=ref[1],ref={ref[2]}}
     end
 
     if #tree>counter then
@@ -304,16 +311,19 @@ function builder:buildIdx()
             return
         end
         if node.name~="" then
-            for i=1,#node.ref do
+            for i=1,#node.ref,2 do
                 counter=counter+1
                 append(level+1,"<LI><OBJECT type=\"text/sitemap\">")
-                if node.name:find("^#SEE#")==1 then
-                    node.name=node.name:sub(6)
-                    append(level+2,([[<param name="Name"  value="%s">]]):format("See Also "..node.name))
-                    append(level+2,([[<<param name="See Also" value="%s">]]):format(node.name))
+                if node.ref[i]:find("^#SEE#")==1 then
+                    append(level+2,([[<param name="Name"  value="%s">]]):format(node.name))
+                    append(level+2,([[<param name="See Also" value="%s">]]):format(node.ref[i]:sub(6)))
                 else
                     append(level+2,([[<param name="Name"  value="%s">]]):format(node.name))
                     append(level+2,([[<param name="Local" value="%s">]]):format(self.dir..'\\'..node.ref[i]))
+                    if node.ref[i+1] then
+                        counter=counter+1
+                        append(level+2,([[<param name="URL" value="%s">]]):format(self.dir..'\\'..node.ref[i+1]))
+                    end
                 end
                 if i==#node.ref and #node>0 then
                     append(level+1,'</OBJECT><UL>')
@@ -422,7 +432,7 @@ function builder:buildJson()
                     global_keys[self.name]=sql_keys
                 end
                 if first:upper()==first and level<4 then --index package name and method
-                    sql_keys[node.t]=node.h
+                    sql_keys[node.t:upper()]={node.t,node.h}
                 end
             end
             if node.c then
@@ -546,7 +556,7 @@ function builder:processHTML(file,level)
                 local index_name=b:getcontent():gsub('[:%s]+$','')
                 local book,href=a.attributes.href:match('MS%-ITS:(.+)%.chm::/(.+)')
                 if not global_keys[book] then global_keys[book]={} end
-                global_keys[book][index_name]=href:sub(#book+2):gsub('/','\\')
+                global_keys[book][index_name:upper()]={index_name,href:sub(#book+2):gsub('/','\\')}
             end
         end
     end
