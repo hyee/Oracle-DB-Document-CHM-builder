@@ -7,7 +7,7 @@ local target_doc_root='f:\\BM\\newdoc11\\'
 --]]
 
 --[[
-    (c)2016 by hyee, MIT license, https://github.com/hyee/Oracle-DB-Document-CHM-builder
+    (c)2016-2017 by hyee, MIT license, https://github.com/hyee/Oracle-DB-Document-CHM-builder
 
     .hhc/.hhk/.hhp files are all created under the root path
 
@@ -311,7 +311,7 @@ function builder:buildIdx()
             return
         end
         if node.name~="" then
-            for i=1,#node.ref,2 do
+            for i=1,#node.ref do
                 counter=counter+1
                 append(level+1,"<LI><OBJECT type=\"text/sitemap\">")
                 if node.ref[i]:find("^#SEE#")==1 then
@@ -320,10 +320,6 @@ function builder:buildIdx()
                 else
                     append(level+2,([[<param name="Name"  value="%s">]]):format(node.name))
                     append(level+2,([[<param name="Local" value="%s">]]):format(self.dir..'\\'..node.ref[i]))
-                    if node.ref[i+1] then
-                        counter=counter+1
-                        append(level+2,([[<param name="URL" value="%s">]]):format(self.dir..'\\'..node.ref[i+1]))
-                    end
                 end
                 if i==#node.ref and #node>0 then
                     append(level+1,'</OBJECT><UL>')
