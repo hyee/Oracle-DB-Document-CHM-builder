@@ -512,6 +512,8 @@ function builder:processHTML(file,level)
     header=header:format(self.topic:gsub("Oracle","Oracle&reg;"),(self.ver=='12c' and '12c' or '11g'),dcommon_path,dcommon_path,dcommon_path,dcommon_path)
     txt,count=txt:gsub("\n(%s+parent%.document%.title)","\n//%1"):gsub("&amp;&amp;","&&")
     txt,count=txt:gsub('%s*<header>.-</header>%s*','')
+    txt=txt:gsub('%s*<meta http%-equiv="X%-UA%-Compatible"[^>]+>%s*','') 
+    txt=txt:gsub('<head>','<head><meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>',1)
     txt=txt:gsub('%s*<footer>.*</footer>%s*','')
     txt=txt:gsub([[(%s*<script.-<%/script>%s*)]],'')
     txt=txt:gsub('%s*<a href="#BEGIN".-</a>%s*','')
@@ -529,7 +531,7 @@ function builder:processHTML(file,level)
         txt=txt:gsub([[(["'])]]..prefix..'index%.html?%1','%1MS-ITS:index.chm::/index.htm%1')
     end
 
-    txt=txt:gsub('"('..prefix..'[^%.][^"]-)([^"\\/]+.html?[^"\\/]*)"',function(s,e)
+    txt=txt:gsub('"('..prefix..'[^%.][^"]-)([^"\\/]+.html?[^%s"\\/]*)"',function(s,e)
         if e:find('.css',1,true) or e:find('.js',1,true) or s:find('dcommon') then return '"'..s..e..'"' end
         local t=s:gsub('^'..prefix,'')
         if t=='' then return '"'..s..e..'"' end
@@ -538,7 +540,7 @@ function builder:processHTML(file,level)
     end)
 
     if level==2 and self.parent then
-        txt=txt:gsub([["%.%./([^%.][^"]-)([^"\/]+.html?[^"\/]*)"]],function(s,e)
+        txt=txt:gsub([["%.%./([^%.][^"]-)([^"\/]+.html?[^%s"\/]*)"]],function(s,e)
             t=self.parent..'/'..s
             e=e:gsub('(html?)%?[^#]+','%1')
             return '"MS-ITS:'..t:gsub("[\\/]+",".").."chm::/"..t:gsub("[\\/]+","/")..e..'"'
