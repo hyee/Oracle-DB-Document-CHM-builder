@@ -76,7 +76,7 @@ function builder.new(dir,build,copy)
     end
     local full_dir=target_doc_root..dir..'\\'
     local o={
-        ver=errmsg_book==source_doc_root:find('E11882_01') and '11g' or '12c',
+        ver=source_doc_root:find('E11882_01') and '11g' or '12c',
         toc=full_dir..'toc.htm',
         json=full_dir..'target.json',
         idx=full_dir..'index.htm',
