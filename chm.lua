@@ -496,17 +496,13 @@ function builder:processHTML(file,level)
     local count=0
     self.topic=self.topic or ""
     local dcommon_path=string.rep('../',level)..'dcommon'
-    local header=[[<table summary="" cellspacing="0" cellpadding="0">
+    local header=[[<table summary="" cellspacing="0" cellpadding="0" style="width:100%%">
         <tr>
-        <td align="left" valign="top"><b style="color:#326598;font-size:12px">%s<br/><i style="color:black">%s  Release 2</i></b></td>
-        <td width="60" align="center" valign="top"><a href="index.htm"><img width="24" height="24" src="%s/gifs/index.gif" alt="Go to Index" /><br />
-        <span class="icon">Index</span></a></td>
-        <td width="70" align="center" valign="top"><a href="toc.htm"><img width="24" height="24" src="%s/gifs/doclib.gif" alt="Go to Documentation Home" /><br />
-        <span class="icon">Content</span></a></td>
-        <td width="80" align="center" valign="top"><a href="MS-ITS:nav.chm::/nav/portal_booklist.htm"><img width="24" height="24" src="%s/gifs/booklist.gif" alt="Go to Book List" /><br />
-        <span class="icon">Book List</span></a></td>
-        <td width="80" align="center" valign="top"><a href="MS-ITS:nav.chm::/nav/mindx.htm"><img width="24" height="24" src="%s/gifs/masterix.gif" alt="Go to Master Index" /><br />
-        <span class="icon">Master Index</span></a></td>
+        <td nowrap="nowrap" align="left" valign="top"><b style="color:#326598;font-size:12px">%s<br/><i style="color:black">%s  Release 2</i></b></td>
+        <td nowrap="nowrap" style="font-size:10px"  width=70 align="center" valign="top"><a href="index.htm"><img width="30" height="30" src="%s/gifs/index.gif" alt="Go to Index" /><br />Index</a></td>
+        <td nowrap="nowrap" style="font-size:10px" width=80 align="center" valign="top"><a style="font-size:10px" href="toc.htm"><img width="30" height="30" src="%s/gifs/doclib.gif" alt="Go to Documentation Home" /><br />Content</a></td>
+        <td nowrap="nowrap" style="font-size:10px" width=90 align="center" valign="top"><a style="font-size:10px" href="MS-ITS:nav.chm::/nav/portal_booklist.htm"><img width="30" height="30" src="%s/gifs/booklist.gif" alt="Go to Book List" /><br />Book List</a></td>
+        <td nowrap="nowrap" style="font-size:10px" width=100 align="center" valign="top"><a style="font-size:10px" href="MS-ITS:nav.chm::/nav/mindx.htm"><img width="30" height="30" src="%s/gifs/masterix.gif" alt="Go to Master Index" /><br />Master Index</a></td>
         </tr>
         </table>]]
     header=header:format(self.topic:gsub("Oracle","Oracle&reg;"),(self.ver=='12c' and '12c' or '11g'),dcommon_path,dcommon_path,dcommon_path,dcommon_path)
