@@ -527,7 +527,7 @@ function builder:processHTML(file,level)
         txt=txt:gsub([[(["'])]]..prefix..'index%.html?%1','%1MS-ITS:index.chm::/index.htm%1')
     end
 
-    txt=txt:gsub('"('..prefix..'[^%.][^"]-)([^"\\/]+.html?[^%s"\\/]*)"',function(s,e)
+    txt=txt:gsub('"('..prefix..'[^%.][^"]-)([^"\\/]+%.html?[^%s"\\/]*)"',function(s,e)
         if e:find('.css',1,true) or e:find('.js',1,true) or s:find('dcommon') then return '"'..s..e..'"' end
         local t=s:gsub('^'..prefix,'')
         if t=='' then return '"'..s..e..'"' end
@@ -536,7 +536,8 @@ function builder:processHTML(file,level)
     end)
 
     if level==2 and self.parent then
-        txt=txt:gsub([["%.%./([^%.][^"]-)([^"\/]+.html?[^%s"\/]*)"]],function(s,e)
+        txt=txt:gsub([["%.%./([^%.][^"]-)([^"\/]+%.html?[^%s"\/]*)"]],function(s,e)
+            if e:find('.css',1,true) or e:find('.js',1,true) or s:find('dcommon') then return '"'..s..e..'"' end
             t=self.parent..'/'..s
             e=e:gsub('(html?)%?[^#]+','%1')
             return '"MS-ITS:'..t:gsub("[\\/]+",".").."chm::/"..t:gsub("[\\/]+","/")..e..'"'
