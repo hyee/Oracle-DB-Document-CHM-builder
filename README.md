@@ -6,6 +6,11 @@ Generate Oracle database 11g/12c online documentations into offline CHM file set
 * Supports cross-books searching
 * Portable and no depedency in all Windows platforms
 
+# Histories
+* 2017-10-18: added 12.1 documentations 
+* 2017-10-15: somes fixes on the page layouts; updated to the latest documents; included Exadata into 12.2 documents 
+* 2016-11-16: initial draft
+
 # Available Prebuilt CHM Books:
 Refer to https://pan.baidu.com/s/1hrTfE9e <br/> or OneDrive: https://1drv.ms/f/s!Akx26bLmnboFki7M-Pkf39TpWoRc
 

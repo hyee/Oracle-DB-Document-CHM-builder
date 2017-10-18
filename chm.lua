@@ -76,7 +76,7 @@ function builder.new(dir,build,copy)
     end
     local full_dir=target_doc_root..dir..'\\'
     local o={
-        ver=source_doc_root:find('E11882_01') and '11g' or '12c',
+        ver=source_doc_root:find('E11882_01') and '11g' or source_doc_root:find('121') and '12.1' or '12.2',
         toc=full_dir..'toc.htm',
         json=full_dir..'target.json',
         idx=full_dir..'index.htm',
@@ -660,9 +660,12 @@ end
 
 function builder.BuildBatch()
     local dir=target_doc_root
-    builder.topic='Oracle 12c Documents(E66230_01)'
+    builder.topic='Oracle 12.2 Documentations'
+    if source_doc_root:find('121') then
+        builder.topic='Oracle 12.1 Documentations'
+    end
     if source_doc_root:find('E11882_01') then
-        builder.topic='Oracle 11g Documents(E11882_01)'
+        builder.topic='Oracle 11g Documentations'
     end
     builder.save(dir..'index.htm',builder.read(source_doc_root..'index.htm'))
     builder.processHTML(builder,dir..'index.htm',0)
