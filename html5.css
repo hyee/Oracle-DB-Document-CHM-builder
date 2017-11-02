@@ -43,7 +43,7 @@ display:block;
 }
 .IND {
     line-height: 1.5;
-    width: 90%;
+    width: 97%;
     padding-right: 2rem;
     padding-top: 20px;
 }
@@ -1086,7 +1086,7 @@ button#download {
 		width: 95%;
 	}
 	.IND.large-9.medium-8.columns.resizecont {
-		width: 95% !important;
+		width: 93% !important;
 	}
 	div.showcont {
 		width: 25% !important;

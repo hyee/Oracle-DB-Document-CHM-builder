@@ -50,7 +50,7 @@ local html=require("htmlparser")
 local json=require("json")
 local io,pairs,ipairs,math=io,pairs,ipairs,math
 local global_keys,global_key_file=nil,target_doc_root..'key.json'
-
+local ver=source_doc_root:find('E11882_01') and '11.2' or source_doc_root:find('121') and '12.1' or '12.2'
 local reps={
     ["\""]="&quot;",
     ["<"]="&lt;",
@@ -75,8 +75,9 @@ function builder.new(dir,build,copy)
         folder=dir
     end
     local full_dir=target_doc_root..dir..'\\'
+    
     local o={
-        ver=source_doc_root:find('E11882_01') and '11g' or source_doc_root:find('121') and '12.1' or '12.2',
+        ver=ver,
         toc=full_dir..'toc.htm',
         json=full_dir..'target.json',
         idx=full_dir..'index.htm',
@@ -498,14 +499,17 @@ function builder:processHTML(file,level)
     local dcommon_path=string.rep('../',level)..'dcommon'
     local header=[[<table summary="" cellspacing="0" cellpadding="0" style="width:100%%">
         <tr>
-        <td nowrap="nowrap" align="left" valign="top"><b style="color:#326598;font-size:12px">%s<br/><i style="color:black">%s  Release 2</i></b></td>
+        <td nowrap="nowrap" align="left" valign="top"><b style="color:#326598;font-size:12px">%s<br/><i style="color:black">%s  Release %s</i></b></td>
         <td nowrap="nowrap" style="font-size:10px"  width=70 align="center" valign="top"><a href="index.htm"><img width="30" height="30" src="%s/gifs/index.gif" alt="Go to Index" /><br />Index</a></td>
         <td nowrap="nowrap" style="font-size:10px" width=80 align="center" valign="top"><a style="font-size:10px" href="toc.htm"><img width="30" height="30" src="%s/gifs/doclib.gif" alt="Go to Documentation Home" /><br />Content</a></td>
         <td nowrap="nowrap" style="font-size:10px" width=90 align="center" valign="top"><a style="font-size:10px" href="MS-ITS:nav.chm::/nav/portal_booklist.htm"><img width="30" height="30" src="%s/gifs/booklist.gif" alt="Go to Book List" /><br />Book List</a></td>
         <td nowrap="nowrap" style="font-size:10px" width=100 align="center" valign="top"><a style="font-size:10px" href="MS-ITS:nav.chm::/nav/mindx.htm"><img width="30" height="30" src="%s/gifs/masterix.gif" alt="Go to Master Index" /><br />Master Index</a></td>
         </tr>
         </table>]]
-    header=header:format(self.topic:gsub("Oracle","Oracle&reg;"),(self.ver=='12c' and '12c' or '11g'),dcommon_path,dcommon_path,dcommon_path,dcommon_path)
+    local big,small=ver:match("(%d+)%.(%d+)")
+    header=header:format(self.topic:gsub("Oracle","Oracle&reg;"),
+               big..(big=='11' and 'g' or 'c'), small,
+               dcommon_path,dcommon_path,dcommon_path,dcommon_path)
     txt,count=txt:gsub("\n(%s+parent%.document%.title)","\n//%1"):gsub("&amp;&amp;","&&")
     txt,count=txt:gsub('%s*<header>.-</header>%s*','')
     txt=txt:gsub('%s*<meta http%-equiv="X%-UA%-Compatible"[^>]+>%s*','') 
@@ -660,13 +664,7 @@ end
 
 function builder.BuildBatch()
     local dir=target_doc_root
-    builder.topic='Oracle 12.2 Documentations'
-    if source_doc_root:find('121') then
-        builder.topic='Oracle 12.1 Documentations'
-    end
-    if source_doc_root:find('E11882_01') then
-        builder.topic='Oracle 11g Documentations'
-    end
+    builder.topic='Oracle '..ver..' Documentations'
     builder.save(dir..'index.htm',builder.read(source_doc_root..'index.htm'))
     builder.processHTML(builder,dir..'index.htm',0)
     local hhc=[[<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
@@ -772,7 +770,7 @@ function builder.BuildBatch()
         hhc=hhc..(item):format(book.file, book.file)
         hhp=hhp..book.chm.."\n"
     end
-    html=table.concat(html,'\n')..'</table><br/><p style="font-size:12px">@2016 by hyee https://github.com/hyee/Oracle-DB-Document-CHM-builder</p>'
+    html=table.concat(html,'\n')..'</table><br/><p style="font-size:12px">&copy;2016 hyee https://github.com/hyee/Oracle-DB-Document-CHM-builder</p>'
     
     hhc=hhc..'</BODY></HTML>'
     builder.save(dir.."chm.htm",html)
