@@ -7,6 +7,7 @@ Generate Oracle database 11g/12c online documentations into offline CHM file set
 * Portable and no depedency in all Windows platforms
 
 # Histories
+* 2017-11-07: updated to latest docs 
 * 2017-10-18: added 12.1 documentations 
 * 2017-10-15: somes fixes on the page layouts; updated to the latest documents; included Exadata into 12.2 documents 
 * 2016-11-16: initial draft
