@@ -3,4 +3,6 @@
 \js\
 \fancybox\
 .mobi
-target.db
+.json
+.db
+target.js

@@ -64,6 +64,7 @@ end
 
 local jcount={}
 local builder={}
+local is_build_global_keys=true
 function builder.new(dir,build,copy)
     dir=dir:gsub('[\\/]+','\\'):gsub("\\$","")
     if dir:find(target_doc_root,1,true)==1 then dir=dir:sub(#target_doc_root+1) end
@@ -75,11 +76,12 @@ function builder.new(dir,build,copy)
         folder=dir
     end
     local full_dir=target_doc_root..dir..'\\'
-    
+    local sourceroot=source_doc_root..dir.."\\"
     local o={
         ver=ver,
         toc=full_dir..'toc.htm',
-        json=full_dir..'target.json',
+        json=sourceroot..'target.json',
+        db=sourceroot..'target.db',
         idx=full_dir..'index.htm',
         hhc="",
         hhk="",
@@ -92,7 +94,6 @@ function builder.new(dir,build,copy)
         name=dir:gsub("[\\/]+",".")}
     if copy then
         local targetroot='"'..full_dir..'"'
-        local sourceroot=source_doc_root..dir.."\\"
         local lst={"toc.htm","index.htm","title.htm"}
         for j=1,3 do builder.exists(sourceroot..lst[j]) end
         local exec=io.popen("mkdir "..targetroot..' 2>nul & xcopy "'..sourceroot..'*" '..targetroot.." /E/Y/Q  /EXCLUDE:exclude.txt")
@@ -103,13 +104,15 @@ function builder.new(dir,build,copy)
     else
         o.title="toc.htm"
     end
-    if not global_keys then 
+    if is_build_global_keys and not global_keys then 
         global_keys=builder.read(global_key_file)
         if global_keys then 
             global_keys=json.decode(global_keys)
         else
             global_keys={}
         end
+    elseif not global_keys then
+        global_keys={}
     end
     if builder.exists(full_dir..'allclasses-frame.html') then o.is_javadoc=true end
     setmetatable(o,builder)
@@ -151,14 +154,14 @@ function builder:getContent(file)
     local title=txt:match([[<meta name="doctitle" content="([^"]+)"]])
     if not title then title=txt:match("<title>(.-)</title>") end
     if title then title=title:gsub("%s*&reg;?%s*"," "):gsub("([\1-\127\194-\244][\128-\193])", ''):gsub('%s*|+%s*',''):gsub('&.-;','') end
-    local root=html.parse(txt):select("div[class^='IND']")
+    local root=html.parse(txt,1000000):select("div[class^='IND']")
     return root and root[1] or nil,title
 end
 
 function builder:buildGlossary(tree)
     local text=self.read(self.full_dir..'glossary.htm')
     if not text then return end
-    local nodes=html.parse(text):select('p[class="glossterm"]')
+    local nodes=html.parse(text,1000000):select('p[class="glossterm"]')
     for _,p in ipairs(nodes) do
         local a=p.nodes[1]
         local ref=a.attributes.id or a.attributes.name
@@ -180,7 +183,7 @@ function builder:buildIdx()
       <BODY><UL>]]}
 
     local c=self:getContent(self.idx)
-    if not c and not self.errmsg and not self.is_javadoc and not global_keys[self.name] then return end
+    if not c and not self.errmsg and not self.is_javadoc and (is_build_global_keys and not global_keys[self.name]) then return end
 
     local function append(level,txt)
         hhk[#hhk+1]='\n    '..string.rep("  ",level).. txt
@@ -200,7 +203,7 @@ function builder:buildIdx()
             if text=='' then text=nil end
         end
         if text then
-            local nodes=html.parse(text):select("a")
+            local nodes=html.parse(text,1000000):select("a")
             local addrs={}
             for idx,a in ipairs(nodes) do
                 if a.attributes.href and a.attributes.href:find('.htm',1,true) then
@@ -356,8 +359,8 @@ function builder:buildJson()
     local function append(level,txt)
         hhc[#hhc+1]='\n    '..string.rep("  ",level*2).. txt
     end
-
-    local txt=self.read(self.json)
+    local txt,typ=self.read(self.db),'db'
+    if not txt then txt,typ=self.read(self.json),'json' end
     if not txt then
         local title,href
         if self.name:lower()=="nav" then 
@@ -411,12 +414,93 @@ function builder:buildJson()
         print('Book:',self.topic)
         return 
     end
-    local root=json.decode(txt)
+    local root
+    if typ=='db' then
+        txt=txt:gsub('<%?xml.-%?>','')
+        txt=txt:gsub('<xreftext>.-</xreftext>','')
+        local doc=html.parse(txt,1000000)
+        root={docs={}}
+        local appendix="appendix"
+        local function travel(node,parent,depth)
+            local attrs=node.attributes
+            attrs.targetptr=attrs.targetptr~="" and attrs.targetptr or nil
+            local u=attrs.href and (attrs.href..(attrs.targetptr and ('#'..attrs.targetptr) or ''))
+            local n=attrs.number~="" and attrs.number or nil
+            if n then n=n:gsub("^%s+",""):gsub("%s+$","") end
+            local e=attrs.element and attrs.element:lower() or nil
+            u={h=u,n=node.name,p=e,c={n=node.name,p=e},seq=n}
+            if e==appendix and parent.p~=appendix and node.name=="div" and parent.n=="div" then
+                local prev=parent[#parent]
+                if prev and prev.c and prev.c.n=="div" and (prev.c.p==appendix and #prev.c>0 or prev.c.p=="part") then
+                    if prev.t==prev.seq then prev.t=prev.seq.." Appendixes" end
+                    parent=prev.c
+                else
+                    local apx={n=node.name,p=e,t="Appendix",h=u.h,c={n=node.name,p=e}}
+                    --print(string.rep(' ',4*depth)..apx.t)
+                    parent[#parent+1]=apx
+                    parent=apx.c
+                end
+                depth=depth+1
+            end
+            parent[#parent+1]=u
+            u.d=depth
+            for idx,child in ipairs(node.nodes) do
+                local p=child.name=="obj" and u.c or child.name=="div" and u.c
+                if p then
+                    travel(child,p,depth+1)
+                elseif not u.t and child.name=="ttl" then
+                    u.t=((n and (n.." "):gsub("%%s"," ") or "")..child:getcontent()):gsub("%s+"," ")
+                    --print(string.rep(' ',4*depth)..u.t.." => "..(u.h or ""))
+                end
+            end
+            if not u.t and n then u.t=n end
+        end
+        travel(doc.nodes[1],root.docs,0)
+    else
+        root=json.decode(txt)
+    end
+    
+    local last=#root.docs[1].c
+    for i=last,1,-1 do
+        local node=root.docs[1].c[i]
+        local p=node.p
+        local t=node.t and node.t:lower()
+        if t and p=="part" and (not node.c or #node.c==0) and last then
+            node.c={p=node.p,n=node.n}
+            for j=last,i+1,-1 do
+                local child=table.remove(root.docs[1].c,j)
+                --print(node.t,child.t)
+                table.insert(node.c,1,child)
+            end
+            last=nil
+        elseif p=="part" or p=="appendix" or p=="index" or p=="glossary" or node.t=="index" or node.t=="glossary" then
+            last=nil
+        elseif not last then
+            last=i
+        end
+    end
+    
+    txt=self.read(self.toc)
+    if txt then
+        for v,item in ipairs{
+            {'"(title.html?)"','Title and Copyright Information'},
+            {'"(lot.html?)"','List of Tables'},
+            {'"(lof.html?)"','List of Figures'},
+        } do
+            local url=txt:match(item[1])
+            if url then
+                table.insert(root.docs[1].c,1,{t=item[2],h=url})
+            end
+        end
+    end
+    
+    
     local counter,last_node,sql_keys=0
     if plsql_package_ref[self.dir] then print('Found PL/SQL API and indexing the content.') end
+    local partin=false
     local function travel(node,level)
         if node.t then
-            node.t=node.t:gsub("([\1-\127\194-\244][\128-\193])", ''):gsub('%s*|+%s*',''):gsub('&.-;',''):gsub('\153',"'")
+            node.t=node.t:gsub("([\1-\127\194-\244][\128-\193])", ''):gsub('%s*|+%s*',''):gsub('&.-;',''):gsub('\153',"'"):gsub("^%s+","")
             last_node=node.h
             counter=counter+1
             append(level+1,"<LI><OBJECT type=\"text/sitemap\">")
@@ -432,7 +516,7 @@ function builder:buildJson()
                     sql_keys[node.t:upper()]={node.t,node.h}
                 end
             end
-            if node.c then
+            if node.c and #node.c>0 then
                 append(level+1,"</OBJECT><UL>") 
                 for index,child in ipairs(node.c) do
                     travel(child,level+1)
@@ -479,7 +563,7 @@ function builder:processHTML(file,level)
         return
     elseif self.dir and errmsg_book[self.dir] then --deal with the error message book
         if not self.errmsg then self.errmsg={} end
-        local doc=html.parse(txt):select("dt")
+        local doc=html.parse(txt,1000000):select("dt")
         local name=file:match("[^\\/]+$")
         for idx,node in ipairs(doc) do
             local a=node.nodes[1]
@@ -514,7 +598,24 @@ function builder:processHTML(file,level)
     txt,count=txt:gsub('%s*<header>.-</header>%s*','')
     txt=txt:gsub('%s*<meta http%-equiv="X%-UA%-Compatible"[^>]+>%s*','') 
     txt=txt:gsub('<head>','<head><meta http-equiv="X-UA-Compatible" content="IE=9"/>',1)
-    txt=txt:gsub('%s*<footer>.*</footer>%s*','')
+    txt=txt:gsub('%s*<footer>(.-)</footer>%s*',function(s)
+        if not s:find("nav%.gif") then return "" end
+        local left,right,copy='#','#',''
+        for url,dir in s:gmatch('<a%s+href="([^"]+)"[^>]*><img%s+[^>]+/(%w+)nav.gif"') do
+            if dir=='left' then 
+                left=url
+            else
+                right=url
+            end
+        end
+        copy=s:match("(Copyright[^<]+)") or "";
+        return ([[
+                <hr/><table><tr>
+                <td style="width:80px"><a href="%s"><img width="24" height="24" src="../dcommon/gifs/leftnav.gif" alt="Go to previous page" /><br/><span class="icon">Previous</span></a></td>
+                <td style="text-align:center;vertical-align:middle;font-size:9px"><img width="144" height="18" src="../dcommon/gifs/oracle.gif" alt="Oracle" /><br/>%s</td>
+                <td  style="width:80px"><a href="%s"><img width="24" height="24" src="../dcommon/gifs/rightnav.gif" alt="Go to next page" /><br /><span class="icon">Next</span></a></td>
+                </tr></table>]]):format(left,copy,right)
+    end)
     txt=txt:gsub([[(%s*<script.-<%/script>%s*)]],'')
     txt=txt:gsub('%s*<a href="#BEGIN".-</a>%s*','')
     txt=txt:gsub('(<[^>]*) onload=".-"','%1')
@@ -549,7 +650,7 @@ function builder:processHTML(file,level)
     end
 
     if self.name and self.name:lower()=="nav" and (file:find('sql_keywords',1,true) or file:find('catalog_views',1,true)) then
-        for _,span in ipairs(html.parse(txt):select("span")) do
+        for _,span in ipairs(html.parse(txt,1000000):select("span")) do
             local b,a=span.nodes[1],span.nodes[2]
             if a and b.name=='b' and a.name=='a' and (a.attributes.href or ""):find('MS-ITS',1,true) then
                 local index_name=b:getcontent():gsub('[:%s]+$','')
@@ -559,6 +660,8 @@ function builder:processHTML(file,level)
             end
         end
     end
+    local q1,q2='"',"'"
+    txt=txt:gsub('((<a [^<>]*href=)([\'"])(http[^\'"]+)[\'"])','%1 target="_blank"')
     if not txt then print("file",file,"miss matched!") end
     self.save(file,txt)
 end
@@ -609,7 +712,7 @@ function builder:buildHhp()
     hhp=hhp..table.concat(self.filelist,'\n')
     local _,depth=self.dir:gsub('[\\/]','')
     self.save(self.root..self.name..".hhp",hhp:gsub('[\n\r]+%s+','\n'))
-    if self.name:lower()=='nav' then
+    if self.name:lower()=='nav' and is_build_global_keys then
         os.execute('copy /Y html5.css '..target_doc_root..'nav\\css') 
         self.save(global_key_file,json.encode(global_keys))
     end
@@ -771,7 +874,6 @@ function builder.BuildBatch()
         hhp=hhp..book.chm.."\n"
     end
     html=table.concat(html,'\n')..'</table><br/><p style="font-size:12px">&copy;2016 hyee https://github.com/hyee/Oracle-DB-Document-CHM-builder</p>'
-    
     hhc=hhc..'</BODY></HTML>'
     builder.save(dir.."chm.htm",html)
     builder.save(dir.."index.hhp",hhp:gsub('[\n\r]+%s+','\n'))
@@ -810,10 +912,8 @@ if arg[1] then
     elseif p and p>0 then 
         builder.BuildAll(p)
     else
-        builder.new(arg[1],true,true)        
+        is_build_global_keys=false
+        builder.new(arg[1],true,true)
+        os.execute('"'..chm_builder..'" '..target_doc_root..(arg[1]:gsub("[\\/]",'.'))..'.hhp')
     end        
 end
-
---builder.new('ERRMG',1,1)
---builder.BuildAll(6)
---builder.BuildBatch()
