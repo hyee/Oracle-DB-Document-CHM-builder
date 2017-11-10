@@ -11,7 +11,7 @@ local target_doc_root='f:\\BM\\newdoc11\\'
 
     .hhc/.hhk/.hhp files are all created under the root path
 
-    .hhc => Content rules(buildJson): target.json
+    .hhc => Content rules(buildJson): target.db/target.json
     .hhk => Index rules(buildIdx):
         1. Common books => index.htm:
             <dl> -> <dd[class='*ix']>content,<a[href]>
@@ -39,6 +39,9 @@ local target_doc_root='f:\\BM\\newdoc11\\'
                 a. Replace '.htm?<parameters>' as '.htm'
                 b. Caculate the <relative_path> based on the root path and replace '\' as '.', assign as the <file_name>
                 c. Final address is 'MS-ITS:<file_name>.chm::/<relative_path>/<html_file(#...)?>'
+            5). For all links from 'a' that starts with 'http', set attribute target="_blank"
+            6). For the content inside "<footer></footer>", if contains the prev/next navigation, then add the bottom bar
+            7). For sections that after p="part", move as the children; for sections that p="appendix", move into appendix part
     Book list rules: all directories that contains 'toc.htm'
 
 --]]
@@ -249,7 +252,7 @@ function builder:buildIdx()
             local function access_childs(li,level)
                 if li.name~="li" or not li.nodes[1] then return end
                 local content=li:getcontent():gsub('^%s+','')
-                local n={name=content:gsub('[%s,]+<.*>.*$',''),ref={}}
+                local n={name=content:gsub('[%s,]+<.+>.*$',''),ref={}}
                 if n.name=="" then return end
                 if level==1 then 
                     tree[#tree+1],sql_keys[n.name:upper()]=n,nil
@@ -263,7 +266,9 @@ function builder:buildIdx()
                 local lis=li:select("li")
                 if li.nodes[1].name~="ul" then
                     for _,a in ipairs(li:select("a")) do
-                        n.ref[#n.ref+1]=a.attributes.href
+                        if a.parent==li or (a.parent and a.parent.name=="span" and a.parent.parent==li) then
+                            n.ref[#n.ref+1]=a.attributes.href
+                        end
                     end
 
                     if level>1 and #n.ref==0 and #treenode[level-1].ref==0 then
@@ -464,9 +469,20 @@ function builder:buildJson()
     for i=last,1,-1 do
         local node=root.docs[1].c[i]
         local p=node.p
+        if (node.t==node.seq or not node.t) and node.h then
+            local url=(self.full_dir..node.h):gsub("(html?)#.+$","%1")
+            txt=self.read(url)
+            if txt then
+                local title=txt:match("<title>(.-)</title>")
+                if title then
+                    node.t=(node.seq and (node.seq.." ") or "")..title
+                end
+            end
+        end
         local t=node.t and node.t:lower()
         if t and p=="part" and (not node.c or #node.c==0) and last then
             node.c={p=node.p,n=node.n}
+            
             for j=last,i+1,-1 do
                 local child=table.remove(root.docs[1].c,j)
                 --print(node.t,child.t)
@@ -555,6 +571,9 @@ function builder:processHTML(file,level)
     if not file:lower():find("%.html?$") then return end
     local prefix=string.rep("%.%./",level)
     local txt=self.read(file)
+    if not txt then
+        error('error on opening file: '..file) 
+    end
     if self.is_javadoc then
         txt=txt:gsub('(<script)(.-)(</script>)',function(a,b,c)
             return a..b:gsub('&lt;','>'):gsub('&amp;','&'):gsub('&gt;','<')..c
@@ -601,7 +620,7 @@ function builder:processHTML(file,level)
     txt=txt:gsub('%s*<footer>(.-)</footer>%s*',function(s)
         if not s:find("nav%.gif") then return "" end
         local left,right,copy='#','#',''
-        for url,dir in s:gmatch('<a%s+href="([^"]+)"[^>]*><img%s+[^>]+/(%w+)nav.gif"') do
+        for url,dir in s:gmatch('<a%s+href="([^"]+)"[^>]*><img%s+[^>]+src="(.-/(%w+)nav.gif)"') do
             if dir=='left' then 
                 left=url
             else
@@ -611,10 +630,10 @@ function builder:processHTML(file,level)
         copy=s:match("(Copyright[^<]+)") or "";
         return ([[
                 <hr/><table><tr>
-                <td style="width:80px"><a href="%s"><img width="24" height="24" src="../dcommon/gifs/leftnav.gif" alt="Go to previous page" /><br/><span class="icon">Previous</span></a></td>
-                <td style="text-align:center;vertical-align:middle;font-size:9px"><img width="144" height="18" src="../dcommon/gifs/oracle.gif" alt="Oracle" /><br/>%s</td>
-                <td  style="width:80px"><a href="%s"><img width="24" height="24" src="../dcommon/gifs/rightnav.gif" alt="Go to next page" /><br /><span class="icon">Next</span></a></td>
-                </tr></table>]]):format(left,copy,right)
+                <td style="width:80px"><a href="%s"><img width="24" height="24" src="%s/gifs/leftnav.gif" alt="Go to previous page" /><br/><span class="icon">Prev</span></a></td>
+                <td style="text-align:center;vertical-align:middle;font-size:9px"><img width="144" height="18" src="%s/gifs/oracle.gif" alt="Oracle" /><br/>%s</td>
+                <td  style="width:80px;text-align:right"><a href="%s"><img width="24" height="24" src="%s/gifs/rightnav.gif" alt="Go to next page" /><br /><span class="icon">Next</span></a></td>
+                </tr></table>]]):format(left,dcommon_path,dcommon_path,copy,right,dcommon_path)
     end)
     txt=txt:gsub([[(%s*<script.-<%/script>%s*)]],'')
     txt=txt:gsub('%s*<a href="#BEGIN".-</a>%s*','')
