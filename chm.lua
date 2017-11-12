@@ -1,9 +1,9 @@
-local source_doc_root=[[f:\BM\E66230_01\]]
-local target_doc_root=[[f:\BM\newdoc12\]]
+local source_doc_root=[[j:\BM\E66230_01\]]
+local target_doc_root=[[j:\BM\newdoc12\]]
 
 --[[--FOR 11g
-local source_doc_root='f:\\BM\\E11882_01\\'
-local target_doc_root='f:\\BM\\newdoc11\\'
+local source_doc_root='j:\\BM\\E11882_01\\'
+local target_doc_root='j:\\BM\\newdoc11\\'
 --]]
 
 --[[
@@ -43,9 +43,11 @@ local target_doc_root='f:\\BM\\newdoc11\\'
             6). For the content inside "<footer></footer>", if contains the prev/next navigation, then add the bottom bar
             7). For sections that after p="part", move as the children; for sections that p="appendix", move into appendix part
     Book list rules: all directories that contains 'toc.htm'
-
+    Pattern for replace html5.css:  (\.IND[^\{]+\{[^\}]+\swidth:\s*)(\d{1,2})% => \197%
+                                    body: padding:20px
 --]]
-
+source_doc_root=source_doc_root:gsub('[\\/]+','\\'):gsub("\\$","")..'\\'
+target_doc_root=target_doc_root:gsub('[\\/]+','\\'):gsub("\\$","")..'\\'
 local chm_builder=[[C:\Program Files (x86)\HTML Help Workshop\hhc.exe]]
 local plsql_package_ref={ARPLS=1,AEAPI=1,['appdev.112\\e40758']=1,['appdev.112\\e12510']=1}
 local errmsg_book={ERRMG=1,['server.112\\e17766']=1}
@@ -55,34 +57,97 @@ local io,pairs,ipairs,math=io,pairs,ipairs,math
 local global_keys,global_key_file=nil,target_doc_root..'key.json'
 local ver=source_doc_root:find('E11882_01') and '11.2' or source_doc_root:find('121') and '12.1' or '12.2'
 local reps={
-    ["\""]="&quot;",
-    ["<"]="&lt;",
-    [">"]="&gt;"
+    ['&acute;']='´',  	['&copy;']='©',  	['&gt;']='>',  	    ['&micro;']='µ',  	['&reg;']='®',  
+    ['&amp;']='&',  	['&deg;']='°',  	['&iexcl;']='¡',    ['&nbsp;']=' ',	    ['&raquo;']='>>',  
+    ['&brvbar;']='¦',  	['&divide;']='÷',  	['&iquest;']='¿',  	['&not;']='¬',  	['&sect;']='§',  
+    ['&bull;']='•',  	['&frac12;']='½',  	['&laquo;']='<<',  	['&para;']='¶',  	['&uml;']='¨',  
+    ['&cedil;']='¸',  	['&frac14;']='¼',  	['&lt;']='<',  	    ['&plusmn;']='±',  	['&times;']='×',  
+    ['&cent;']='¢',  	['&frac34;']='¾',  	['&macr;']='¯',  	['&quot;']='"',  	['&trade;']='™',  
+    ['&euro;']='€',  	['&pound;']='£',  	['&yen;']='¥',  			
+    ['&bdquo;']='„',  	['&hellip;']='…',  	['&middot;']='·',  	['&rsaquo;']='>',  	['&ordf;']='ª',  
+    ['&circ;']='ˆ',  	['&ldquo;']='"',  	['&mdash;']='—',  	['&rsquo;']="'",  	['&ordm;']='º',  
+    ['&dagger;']='†',  	['&lsaquo;']='<',  	['&ndash;']='–',  	['&sbquo;']='‚',  	['&rdquo;']='"',  
+    ['&Dagger;']='‡',  	['&lsquo;']="'",  	['&permil;']='‰',  	['&shy;']='',	    ['&tilde;']='˜',  
+    ['&asymp;']='≈',  	['&frasl;']='⁄',  	['&larr;']='←',  	['&part;']='∂',  	['&spades;']='♠',  
+    ['&cap;']='∩',  	['&ge;']='≥',  	    ['&le;']='≤',  	    ['&Prime;']='″',  	['&sum;']='∑',  
+    ['&clubs;']='♣',  	['&harr;']='↔',  	['&loz;']='◊',  	['&prime;']='′',  	['&uarr;']='↑',  
+    ['&darr;']='↓',  	['&hearts;']='♥',  	['&minus;']='−',  	['&prod;']='∏',  	  
+    ['&diams;']='♦',  	['&infin;']='∞',  	['&ne;']='≠',  	    ['&radic;']='√',  	
+    ['&equiv;']='≡',  	['&int;']='∫',  	['&oline;']='‾',  	['&rarr;']='→',  		
+    ['&alpha;']='α',  	['&eta;']='η',  	['&mu;']='μ',  	    ['&pi;']='π',  	    ['&theta;']='θ',  
+    ['&beta;']='β',  	['&gamma;']='γ',  	['&nu;']='ν',  	    ['&psi;']='ψ',  	['&upsilon;']='υ',  
+    ['&chi;']='χ',  	['&iota;']='ι',  	['&omega;']='ω',  	['&rho;']='ρ',  	['&xi;']='ξ',  
+    ['&delta;']='δ',  	['&kappa;']='κ',  	['&omicron;']='ο',  ['&sigma;']='σ',  	['&zeta;']='ζ',  
+    ['&epsilon;']='ε',  ['&lambda;']='λ',  	['&phi;']='φ',  	['&tau;']='τ',  		
+    ['&Alpha;']='Α',  	['&Eta;']='Η',  	['&Mu;']='Μ',  	    ['&Pi;']='Π',  	    ['&Theta;']='Θ',  
+    ['&Beta;']='Β',  	['&Gamma;']='Γ',  	['&Nu;']='Ν',  	    ['&Psi;']='Ψ',  	['&Upsilon;']='Υ',  
+    ['&Chi;']='Χ',  	['&Iota;']='Ι',  	['&Omega;']='Ω',  	['&Rho;']='Ρ',  	['&Xi;']='Ξ',  
+    ['&Delta;']='Δ',  	['&Kappa;']='Κ',  	['&Omicron;']='Ο',  ['&Sigma;']='Σ',  	['&Zeta;']='Ζ',  
+    ['&Epsilon;']='Ε',  ['&Lambda;']='Λ',  	['&Phi;']='Φ',  	['&Tau;']='Τ',  	['&sigmaf;']='ς'
 }
 
-local function rp(s) return reps[s] end
-local function strip(str)
-    return str:gsub("[\n\r\b]",""):gsub("^[ ,]*(.-)[ ,]*$", "%1"):gsub('<.->',''):gsub("  +"," "):gsub("[\"<>]",rp):gsub("%s*&reg;?%s*"," ")
+local function rp(s)
+    if reps[s] then return reps[s] end
+    local asc=s:match('&#(%d+)')
+    if asc and tonumber(asc)<=127 then return string.char(tonumber(asc)) end
+    return s 
 end
 
 local jcount={}
 local builder={}
 local is_build_global_keys=true
+local book_list
+function builder.load_books(toc)
+    if not book_list then 
+        local txt=builder.read(source_doc_root.."nav\\portal_booklist.htm")
+        if txt then
+            book_list={}
+            for url,name in txt:gmatch('<a href="%.%.[\\/]([^"]+[\\/]toc.html?)"[^>]*>%s*([^<]+)</a>') do
+                url=source_doc_root..(url:gsub('[\\/]+','\\'))
+                book_list[url]=name
+                --print(url,name)
+            end
+        end
+    end
+    if toc then return book_list[toc] end
+    return book_list
+end
+
+function builder.get_topic(toc,default)
+    local topic=builder.load_books(toc) or default
+    topic=topic:gsub('^%s+',' '):gsub('%s+$',' '):gsub('^[Oo]racle%S*%s+','')
+    
+    if topic~=default then
+        default=default:gsub('^%s+',' '):gsub('%s+$',' '):gsub('^[Oo]racle%S*%s+','')
+        if default:find('^Database ') and not topic:find('^Database ') then
+            topic='Database '..topic
+        end
+    end
+    return topic
+end
+
 function builder.new(dir,build,copy)
     dir=dir:gsub('[\\/]+','\\'):gsub("\\$","")
     if dir:find(target_doc_root,1,true)==1 then dir=dir:sub(#target_doc_root+1) end
-    local _,depth,parent,folder=dir:gsub('[\\/]','')
-    depth=depth and depth+1 or 1
+    local depth,parent,folder
+    local dirs={}
+    
+    for d in dir:gmatch('([^\\/]+)') do
+        dirs[#dirs+1]=d
+    end
+    depth=#dirs
     if depth>1 then
         parent,folder=dir:match('^(.+)\\([^\\]+)$')
     else
         folder=dir
     end
+    
     local full_dir=target_doc_root..dir..'\\'
     local sourceroot=source_doc_root..dir.."\\"
     local o={
         ver=ver,
         toc=full_dir..'toc.htm',
+        source_toc=sourceroot..'toc.htm',
         json=sourceroot..'target.json',
         db=sourceroot..'target.db',
         idx=full_dir..'index.htm',
@@ -92,6 +157,7 @@ function builder.new(dir,build,copy)
         root=target_doc_root,
         dir=dir,
         full_dir=full_dir,
+        dirs=dirs,
         parent=parent,
         folder=folder,
         name=dir:gsub("[\\/]+",".")}
@@ -402,12 +468,7 @@ function builder:buildJson()
         else
             local _,title=self:getContent(self.toc)
             href='toc.htm'
-            self.topic=title
-            if self.toc:find('e13993') or self.toc:find('JAFAN') then
-                self.topic='Oracle Database RAC FAN Events Java API Reference'
-            elseif self.toc:find('JAXML') then
-                self.topic='Oracle Database XML Java API Reference'
-            end
+            self.topic=self.get_topic(self.source_toc,title or "All Book List")
             append(1,"<LI><OBJECT type=\"text/sitemap\">")
             append(2,([[<param name="Name"  value="%s">]]):format(self.topic))
             append(2,([[<param name="Local" value="%s">]]):format(self.dir..'\\'..href))
@@ -419,6 +480,7 @@ function builder:buildJson()
         print('Book:',self.topic)
         return 
     end
+    
     local root
     if typ=='db' then
         txt=txt:gsub('<%?xml.-%?>','')
@@ -500,6 +562,7 @@ function builder:buildJson()
     if txt then
         for v,item in ipairs{
             {'"(title.html?)"','Title and Copyright Information'},
+            {'"(loe.html?)"','List of Examples'},
             {'"(lot.html?)"','List of Tables'},
             {'"(lof.html?)"','List of Figures'},
         } do
@@ -510,13 +573,14 @@ function builder:buildJson()
         end
     end
     
+    root.docs[1].t=self.get_topic(self.source_toc,root.docs[1].t)
     
     local counter,last_node,sql_keys=0
     if plsql_package_ref[self.dir] then print('Found PL/SQL API and indexing the content.') end
     local partin=false
     local function travel(node,level)
         if node.t then
-            node.t=node.t:gsub("([\1-\127\194-\244][\128-\193])", ''):gsub('%s*|+%s*',''):gsub('&.-;',''):gsub('\153',"'"):gsub("^%s+","")
+            node.t=node.t:gsub("([\1-\127\194-\244][\128-\193])", ''):gsub('%s*|+%s*',''):gsub('(&.-;)',rp):gsub('\153',"'"):gsub("^%s+",""):gsub("%s+"," ")
             last_node=node.h
             counter=counter+1
             append(level+1,"<LI><OBJECT type=\"text/sitemap\">")
@@ -555,7 +619,6 @@ function builder:buildJson()
                 travel(child,level+1)
             end
         end
-
     end
     travel(root.docs[1],0)
     append(0,"</UL></BODY></HTML>")
@@ -569,7 +632,7 @@ end
 
 function builder:processHTML(file,level)
     if not file:lower():find("%.html?$") then return end
-    local prefix=string.rep("%.%./",level)
+    local prefix=string.rep("%.%.[\\/]",level)
     local txt=self.read(file)
     if not txt then
         error('error on opening file: '..file) 
@@ -599,7 +662,7 @@ function builder:processHTML(file,level)
 
     local count=0
     self.topic=self.topic or ""
-    local dcommon_path=string.rep('../',level)..'dcommon'
+    local dcommon_path=string.rep('../',level+self.depth)..'dcommon'
     local header=[[<table summary="" cellspacing="0" cellpadding="0" style="width:100%%">
         <tr>
         <td nowrap="nowrap" align="left" valign="top"><b style="color:#326598;font-size:12px">%s<br/><i style="color:black">%s  Release %s</i></b></td>
@@ -610,7 +673,7 @@ function builder:processHTML(file,level)
         </tr>
         </table>]]
     local big,small=ver:match("(%d+)%.(%d+)")
-    header=header:format(self.topic:gsub("Oracle","Oracle&reg;"),
+    header=header:format('Oracle&reg; '..self.topic:gsub("^[Oo]racle%s+",""),
                big..(big=='11' and 'g' or 'c'), small,
                dcommon_path,dcommon_path,dcommon_path,dcommon_path)
     txt,count=txt:gsub("\n(%s+parent%.document%.title)","\n//%1"):gsub("&amp;&amp;","&&")
@@ -643,30 +706,29 @@ function builder:processHTML(file,level)
     if count>0 then
         txt=txt:gsub('(<div class="IND .->)','%1'..header,1)
     end
-    txt=txt:gsub('href="'..prefix..'([^"]+)%.pdf"([^>]*)>PDF<',function(s,d)
+    
+    txt=txt:gsub('href="'..prefix..'[%./\\]+([^"]+)%.pdf"([^>]*)>PDF<',function(s,d)
         return [[href="javascript:location.href='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..[[.chm'"]]..d..'>CHM<'
     end)
 
-    if level>0 then
-        txt=txt:gsub([[(["'])]]..prefix..'index%.html?%1','%1MS-ITS:index.chm::/index.htm%1')
-    end
-
-    txt=txt:gsub('"('..prefix..'[^%.][^"]-)([^"\\/]+%.html?[^%s"\\/]*)"',function(s,e)
-        if e:find('.css',1,true) or e:find('.js',1,true) or s:find('dcommon') then return '"'..s..e..'"' end
+    txt=txt:gsub([[(["'])]]..prefix..'%.%.[%.\\/]*index%.html?%1','%1MS-ITS:index.chm::/index.htm%1')
+    local subs={}
+    txt=txt:gsub('"('..prefix..'[^"]-)([^"\\/]+%.html?[^%s"\\/]*)"',function(s,e)
+        if not s:find('^%.%.[\\/]') or e:find('.css',1,true) or e:find('.js',1,true) or s:find('dcommon') then return '"'..s..e..'"' end
         local t=s:gsub('^'..prefix,'')
         if t=='' then return '"'..s..e..'"' end
+        subs[#self.dirs+1]=nil
+        for i=1,#self.dirs do subs[i]=self.dirs[i] end
+        while t:find('^%.%.[\\/]') do
+            subs[#subs]=nil
+            t=t:sub(4)
+        end
+        subs[#subs+1]=t
+        t=table.concat(subs,'/')
         e=e:gsub('(html?)%?[^#]+','%1')
         return '"MS-ITS:'..t:gsub("/",".").."chm::/"..t..e..'"'
     end)
 
-    if level==2 and self.parent then
-        txt=txt:gsub([["%.%./([^%.][^"]-)([^"\/]+%.html?[^%s"\/]*)"]],function(s,e)
-            if e:find('.css',1,true) or e:find('.js',1,true) or s:find('dcommon') then return '"'..s..e..'"' end
-            t=self.parent..'/'..s
-            e=e:gsub('(html?)%?[^#]+','%1')
-            return '"MS-ITS:'..t:gsub("[\\/]+",".").."chm::/"..t:gsub("[\\/]+","/")..e..'"'
-        end)
-    end
 
     if self.name and self.name:lower()=="nav" and (file:find('sql_keywords',1,true) or file:find('catalog_views',1,true)) then
         for _,span in ipairs(html.parse(txt,1000000):select("span")) do
@@ -690,7 +752,7 @@ function builder:listdir(base,level,callback)
     local f=io.popen(([[dir /b/s %s*.htm]]):format(root))
     for file in f:lines() do
         local _,depth=file:sub(#root+1):gsub('[\\/]','')
-        self:processHTML(file,level+depth)
+        self:processHTML(file,depth)
         if callback then callback(file:sub(#target_doc_root+1),root,level+depth) end
     end
     f:close()
@@ -698,7 +760,7 @@ function builder:listdir(base,level,callback)
 end
 
 function builder:buildHhp()
-    local title=self.topic
+    local title='Oracle '..self.topic
     local hhp=string.format([[[OPTIONS]
         Binary TOC=No
         Binary Index=Yes
@@ -750,15 +812,22 @@ end
 
 function builder.BuildAll(parallel)
     local tasks={}
-    local fd=io.popen(([[dir /s/b "%stoc.htm"]]):format(source_doc_root))
-    local book_list={"nav"}
+    local fd
+    local book_list={}
+    fd=io.popen(([[dir /s/b "%slookup.htm" & dir /s/b "%stoc.htm"]]):format(source_doc_root,source_doc_root))
     for dir in fd:lines() do
-        local name=dir:sub(#source_doc_root+1):gsub('[\\/][^\\/]+$','')
-        if name~="nav" then book_list[#book_list+1]=name end
+        local name,file=dir:sub(#source_doc_root+1):match('^(.+)[\\/]([^\\/]+)$')
+        local isnav=name=="nav" or name:find('\\nav$')
+        if file=='lookup.htm' and isnav then
+            builder.new(name:gsub('nav$','dcommon'),true,true)
+            book_list[#book_list+1]=name 
+        elseif file=='toc.htm' and not isnav then 
+            book_list[#book_list+1]=name 
+        end
     end
     fd:close()
     os.remove(global_key_file)
-    builder.new('dcommon',true,true)
+    
     for i,book in ipairs(book_list) do
         local this=builder.new(book,true,true)
         local idx=math.fmod(i-1,parallel)+1
