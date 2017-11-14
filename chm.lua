@@ -46,8 +46,29 @@ local target_doc_root='j:\\BM\\newdoc11\\'
     Pattern for replace html5.css:  (\.IND[^\{]+\{[^\}]+\swidth:\s*)(\d{1,2})% => \197%
                                     body: padding:20px
 --]]
+
 source_doc_root=source_doc_root:gsub('[\\/]+','\\'):gsub("\\$","")..'\\'
 target_doc_root=target_doc_root:gsub('[\\/]+','\\'):gsub("\\$","")..'\\'
+local sub_books={
+    E18476_01='Exalogic',
+    E65319_01='Key Vault',
+    E69292_01='Audit Vault',
+    E72944_01='Airlines',
+    E80920_01='Exadata',
+    E83411_01='R',
+    E83817_01='Utilities Data Model',
+    E88198_01='Zero Data Loss Recovery',
+    E89798_01='Big Data',
+    ['E88198_01.DBMSG']='REMOVE',
+    ['E89798_01.DBMSG']='REMOVE',
+    ['E80920_01.DBMSG']='REMOVE',
+    ['SQLQR']='REMOVE',
+    ['E89798_01.DBLIC']='REMOVE',
+    ['E88198_01.DBLIC']='REMOVE',
+    ['E18476_01.doc.220.e26417']='REMOVE',
+    ['E88198_01.OBLIC']='REMOVE',
+    ['server.112.e41085']='REMOVE',
+}
 local chm_builder=[[C:\Program Files (x86)\HTML Help Workshop\hhc.exe]]
 local plsql_package_ref={ARPLS=1,AEAPI=1,['appdev.112\\e40758']=1,['appdev.112\\e12510']=1}
 local errmsg_book={ERRMG=1,['server.112\\e17766']=1}
@@ -113,11 +134,21 @@ function builder.load_books(toc)
     return book_list
 end
 
-function builder.get_topic(toc,default)
+function builder.get_topic(toc,default,name)
     local topic=builder.load_books(toc) or default
     topic=topic:gsub('^%s+',' '):gsub('%s+$',' '):gsub('^[Oo]racle%S*%s+','')
+    local found
     
-    if topic~=default then
+    for k,v in pairs(sub_books) do
+        found=name and name:find(k,1,true)==1
+        if found then
+            if not topic:find(v,1,true) then
+                topic=v..' '..topic
+            end
+            break
+        end
+    end
+    if not found and topic~=default then
         default=default:gsub('^%s+',' '):gsub('%s+$',' '):gsub('^[Oo]racle%S*%s+','')
         if default:find('^Database ') and not topic:find('^Database ') then
             topic='Database '..topic
@@ -161,6 +192,7 @@ function builder.new(dir,build,copy)
         parent=parent,
         folder=folder,
         name=dir:gsub("[\\/]+",".")}
+    if sub_books[o.name]=='REMOVE' then return end
     if copy then
         local targetroot='"'..full_dir..'"'
         local lst={"toc.htm","index.htm","title.htm"}
@@ -173,6 +205,10 @@ function builder.new(dir,build,copy)
     else
         o.title="toc.htm"
     end
+    if not global_keys then
+        global_keys={}
+    end
+    --[[
     if is_build_global_keys and not global_keys then 
         global_keys=builder.read(global_key_file)
         if global_keys then 
@@ -182,7 +218,8 @@ function builder.new(dir,build,copy)
         end
     elseif not global_keys then
         global_keys={}
-    end
+    end--]]
+    
     if builder.exists(full_dir..'allclasses-frame.html') then o.is_javadoc=true end
     setmetatable(o,builder)
     builder.__index=builder
@@ -468,7 +505,7 @@ function builder:buildJson()
         else
             local _,title=self:getContent(self.toc)
             href='toc.htm'
-            self.topic=self.get_topic(self.source_toc,title or "All Book List")
+            self.topic=self.get_topic(self.source_toc,title or "All Book List",self.name)
             append(1,"<LI><OBJECT type=\"text/sitemap\">")
             append(2,([[<param name="Name"  value="%s">]]):format(self.topic))
             append(2,([[<param name="Local" value="%s">]]):format(self.dir..'\\'..href))
@@ -573,7 +610,7 @@ function builder:buildJson()
         end
     end
     
-    root.docs[1].t=self.get_topic(self.source_toc,root.docs[1].t)
+    root.docs[1].t=self.get_topic(self.source_toc,root.docs[1].t,self.name)
     
     local counter,last_node,sql_keys=0
     if plsql_package_ref[self.dir] then print('Found PL/SQL API and indexing the content.') end
@@ -662,7 +699,8 @@ function builder:processHTML(file,level)
 
     local count=0
     self.topic=self.topic or ""
-    local dcommon_path=string.rep('../',level+self.depth)..'dcommon'
+    self.dirs=self.dirs or {}
+    local dcommon_path=string.rep('../',level+#self.dirs)..'dcommon'
     local header=[[<table summary="" cellspacing="0" cellpadding="0" style="width:100%%">
         <tr>
         <td nowrap="nowrap" align="left" valign="top"><b style="color:#326598;font-size:12px">%s<br/><i style="color:black">%s  Release %s</i></b></td>
@@ -713,11 +751,12 @@ function builder:processHTML(file,level)
 
     txt=txt:gsub([[(["'])]]..prefix..'%.%.[%.\\/]*index%.html?%1','%1MS-ITS:index.chm::/index.htm%1')
     local subs={}
+    
     txt=txt:gsub('"('..prefix..'[^"]-)([^"\\/]+%.html?[^%s"\\/]*)"',function(s,e)
-        if not s:find('^%.%.[\\/]') or e:find('.css',1,true) or e:find('.js',1,true) or s:find('dcommon') then return '"'..s..e..'"' end
+        if (#self.dirs>0 and not s:find('^%.%.[\\/]')) or s:find('^http') or s:find('MS-ITS:',1,true) or e:find('.css',1,true) or e:find('.js',1,true) or s:find('dcommon') then return '"'..s..e..'"' end
         local t=s:gsub('^'..prefix,'')
         if t=='' then return '"'..s..e..'"' end
-        subs[#self.dirs+1]=nil
+        subs[#subs]=nil
         for i=1,#self.dirs do subs[i]=self.dirs[i] end
         while t:find('^%.%.[\\/]') do
             subs[#subs]=nil
@@ -725,6 +764,7 @@ function builder:processHTML(file,level)
         end
         subs[#subs+1]=t
         t=table.concat(subs,'/')
+        --print(s,e,t,'"MS-ITS:'..t:gsub("/",".").."chm::/"..t..e..'"')
         e=e:gsub('(html?)%?[^#]+','%1')
         return '"MS-ITS:'..t:gsub("/",".").."chm::/"..t..e..'"'
     end)
@@ -804,13 +844,14 @@ function builder:startBuild()
     self.filelist={}
     if not self.dir:find('dcommon') then self:buildJson() end 
     self:listdir(self.dir..'\\',self.depth,function(item) table.insert(self.filelist,item) end)
-    if not self.dir:find('dcommon') then
+    if not (self.dir:find('dcommon') or self.name:find("%.nav$")) then
         self:buildIdx()
         self:buildHhp()
     end
 end
 
 function builder.BuildAll(parallel)
+    os.execute(string.format("del %s*.hh* & del %s*.chm",target_doc_root,target_doc_root))
     local tasks={}
     local fd
     local book_list={}
@@ -830,21 +871,23 @@ function builder.BuildAll(parallel)
     
     for i,book in ipairs(book_list) do
         local this=builder.new(book,true,true)
-        local idx=math.fmod(i-1,parallel)+1
-        if i==1 then-- for nav
-            idx=parallel+1 
-        end
-        if not tasks[idx] then tasks[idx]={} end
-        local obj='"'..chm_builder..'" "'..target_doc_root..this.name..'.hhp"'
-        if errmsg_book[book] then
-            tasks[idx][#tasks[idx]+1]=obj
-        else
-            table.insert(tasks[idx],1,obj)
+        if this then
+            local idx=math.fmod(i-1,parallel)+1
+            if i==1 then-- for nav
+                idx=parallel+1 
+            end
+            if not tasks[idx] then tasks[idx]={} end
+            local obj='"'..chm_builder..'" "'..target_doc_root..this.name..'.hhp"'
+            if errmsg_book[book] then
+                tasks[idx][#tasks[idx]+1]=obj
+            else
+                table.insert(tasks[idx],1,obj)
+            end
         end
     end
     table.insert(tasks[#tasks],'"'..chm_builder..'" "'..target_doc_root..'index.hhp"')
     for i=1,#tasks do
-        builder.save(i..".bat",table.concat(tasks[i],"\n")..'\nexit\n')
+        builder.save(i..".bat",table.concat(tasks[i],"\n")..'\n')
         if i<=parallel then
             os.execute('start "Compiling CHMS '..i..'" '..i..'.bat')
         end
@@ -945,13 +988,18 @@ function builder.BuildBatch()
         local c=name:sub(1,-5)
         if n==".hhc" and name~="index.hhc" then
             local txt=builder.read(dir..c..".hhp")
-            local title=txt:match("Title=([^\n]+)")
-            hhclist[#hhclist+1]={file=c,title=title,chm=c..".chm",topic_count=txt:match("Topics=([^\n]+)"),index_count=txt:match("Indexes=([^\n]+)")}
+            if txt then
+                local title=txt:match("Title=([^\n]+)")
+                hhclist[#hhclist+1]={file=c,title=title,chm=c..".chm",topic_count=txt:match("Topics=([^\n]+)"),index_count=txt:match("Indexes=([^\n]+)")}
+            end
         end
     end
     f:close()
-
-    table.sort(hhclist,function(a,b) return a.title<b.title end)
+    
+    table.sort(hhclist,function(a,b)
+        if a.file:find('nav$') then return true end
+        if b.file:find('nav$') then return false end
+        return a.title<b.title end)
 
     local html={'<table border><tr><th align="left">CHM File Name</th><th>Topics</th><th>Indexes</th><th align="left">Book Name</th></tr>'}
     local row=[[<tr><td><a href="javascript:location.href='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+'%s'">%s</a></td><td>%s</td><td>%s</td><td>%s</td></tr>]]
@@ -971,7 +1019,7 @@ end
 
 function builder.scanInvalidLinks()
     local max_books=3
-    local f=io.popen('dir /s/b "'..target_doc_root..'*errorlog.txt"')
+    local f=io.popen('dir /s/b "'..source_doc_root..'*errorlog.txt"')
     for file in f:lines() do
         local filelist={}
         local txt,err=builder.read(file)
