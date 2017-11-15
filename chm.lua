@@ -69,6 +69,8 @@ local sub_books={
     ['E88198_01.OBLIC']='REMOVE',
     ['server.112.e41085']='REMOVE',
 }
+local all_books
+local book_file=target_doc_root..'book_list.json'
 local chm_builder=[[C:\Program Files (x86)\HTML Help Workshop\hhc.exe]]
 local plsql_package_ref={ARPLS=1,AEAPI=1,['appdev.112\\e40758']=1,['appdev.112\\e12510']=1}
 local errmsg_book={ERRMG=1,['server.112\\e17766']=1}
@@ -205,8 +207,10 @@ function builder.new(dir,build,copy)
     else
         o.title="toc.htm"
     end
-    if not global_keys then
-        global_keys={}
+    if not global_keys then global_keys={} end
+    if not all_books then
+        book_text=builder.read(book_file)
+        all_books=book_text and json.decode(book_text) or {}
     end
     --[[
     if is_build_global_keys and not global_keys then 
@@ -682,7 +686,7 @@ function builder:processHTML(file,level)
             if url=='#BEGIN' then return '' end
             pre=pre..sux
             if url:find('dcommon',1,true) or url:find('^javascript') or url:find('^#') or url:find('MS-ITS:',1,true) then return fmt:format(q,url,q,pre,content) end
-            local pre1=pre:gsub([[%s+target=(['"]).-%1]],''):gsub([[onclick=(['"]).-%1]],''):gsub([[onload=(['"]).-%1]],'')
+            local pre1=pre:gsub([[target=(['"]).-%1]],''):gsub([[onclick=(['"]).-%1]],''):gsub([[onload=(['"]).-%1]],'')
             if url:find('^http') or url:find('^www') then return fmt:format(q,url,q,pre1..' target='..q..'_blank'..q,content) end
             if not self.is_javadoc then pre=pre1 end
             url=url:gsub('%?[^#]+','')
@@ -697,15 +701,34 @@ function builder:processHTML(file,level)
                 s=s:sub(4)
             end
             subs[#subs+1]=s
+            
             s=table.concat(subs,'/'):gsub('\\','/')
+            local book=s:gsub("/",".")
             if s:find('%.pdf$') then 
                 return fmt:format(q,[[javascript:location.href='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..e..".chm'",pre1,'CHM')
             elseif s:find('^index.html?$') then
                 return fmt:format(q,'MS-ITS:index.chm::/index.htm',q,pre,content)
             elseif #subs>#self.dirs and #self.dirs>0 then 
                 return fmt:format(q,url,q,pre,content)
-            else --one known issue is cannot support xxx.chm:/xxx/sub/file.htm
-                return fmt:format(q,'MS-ITS:'..s:gsub("/",".").."chm::/"..s..e,q,pre,content)
+            elseif self.name and self.name:find(book,1,true) then
+                return fmt:format(q,e,q,pre,content)
+            else
+                if not all_books[s:upper()] and s:find('/',1,true) then
+                    local u,found=(s..e):upper(),false
+                    for k,v in ipairs(all_books) do
+                        if type(k)=="string" then
+                            if u:find(k,1,true)==1 then
+                                u,found=s..e,true
+                                s,e=u:sub(1,#k),u:sub(#k+1)
+                            end
+                        end
+                    end
+                    if not found then
+                        print(string.format('Cannot not find chm for link %s, folder: %s, file:%s',url,s,e))
+                        return fmt:format(q,url,q,pre,content) 
+                    end
+                end
+                return fmt:format(q,'MS-ITS:'..book.."chm::/"..s..e,q,pre,content)
             end
         end)
 
@@ -766,9 +789,9 @@ function builder:processHTML(file,level)
         copy=s:match("(Copyright[^<]+)") or "";
         return ([[
                 <hr/><table><tr>
-                <td style="width:80px"><a href="%s"><img width="24" height="24" src="%s/gifs/leftnav.gif" alt="Go to previous page" /><br/><span class="icon">Prev</span></a></td>
+                <td style="width:80px"><a href="%s"><img width="24" height="24" src="%s/gifs/leftnav.gif" alt="Go to previous page" /></a></td>
                 <td style="text-align:center;vertical-align:middle;font-size:9px"><img width="144" height="18" src="%s/gifs/oracle.gif" alt="Oracle" /><br/>%s</td>
-                <td  style="width:80px;text-align:right"><a href="%s"><img width="24" height="24" src="%s/gifs/rightnav.gif" alt="Go to next page" /><br /><span class="icon">Next</span></a></td>
+                <td  style="width:80px;text-align:right"><a href="%s"><img width="24" height="24" src="%s/gifs/rightnav.gif" alt="Go to next page" /></a></td>
                 </tr></table>]]):format(left,dcommon_path,dcommon_path,copy,right,dcommon_path)
     end)
     txt=txt:gsub([[(%s*<script.-<%/script>%s*)]],'')
@@ -860,22 +883,24 @@ function builder.BuildAll(parallel)
     os.execute(string.format("del %s*.hh* & del %s*.chm",target_doc_root,target_doc_root))
     local tasks={}
     local fd
-    local book_list={}
+    all_books={}
     fd=io.popen(([[dir /s/b "%slookup.htm" & dir /s/b "%stoc.htm"]]):format(source_doc_root,source_doc_root))
     for dir in fd:lines() do
         local name,file=dir:sub(#source_doc_root+1):match('^(.+)[\\/]([^\\/]+)$')
         local isnav=name=="nav" or name:find('\\nav$')
         if file=='lookup.htm' and isnav then
             builder.new(name:gsub('nav$','dcommon'),true,true)
-            book_list[#book_list+1]=name 
+            all_books[#all_books+1]=name 
         elseif file=='toc.htm' and not isnav then 
-            book_list[#book_list+1]=name 
+            all_books[#all_books+1]=name 
         end
+        all_books[name:upper():gsub('\\','/')..'/']=all_books[#all_books]
     end
     fd:close()
     os.remove(global_key_file)
+    builder.save(book_file,json.encode(all_books))
     
-    for i,book in ipairs(book_list) do
+    for i,book in ipairs(all_books) do
         local this=builder.new(book,true,true)
         if this then
             local idx=math.fmod(i-1,parallel)+1
@@ -1049,6 +1074,8 @@ if arg[1] then
         builder.BuildBatch()
     elseif p==-1 then
         builder.scanInvalidLinks()
+    elseif p==-2 then
+        builder.processHTML(builder,target_doc_root..'index.htm',0)
     elseif p and p>0 then 
         builder.BuildAll(p)
     else

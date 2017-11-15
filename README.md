@@ -7,6 +7,7 @@ Generate Oracle database 11g/12c online documentations into offline CHM file set
 * Portable and no depedency in all Windows platforms
 
 # Histories
+* 2017-11-15: added some books: ZRLRA,Key Vault,BigData,Audit Vault,Airline,R Enterprise,ExaLogic
 * 2017-11-09: added prev/next navications; enhancement on building contents 
 * 2017-11-07: updated to latest docs 
 * 2017-10-18: added 12.1 documentations 
