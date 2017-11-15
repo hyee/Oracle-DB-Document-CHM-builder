@@ -674,6 +674,41 @@ function builder:processHTML(file,level)
     if not txt then
         error('error on opening file: '..file) 
     end
+    local fmt='<a href=%s%s%s %s>%s</a>'
+    local subs={}
+    self.dirs=self.dirs or {}
+    txt=txt:gsub([[<a ([^>]*)href=(['"])([^'">]+)%2([^>]*)>(.-)</a>]],
+        function(pre,q,url,sux,content)
+            if url=='#BEGIN' then return '' end
+            pre=pre..sux
+            if url:find('dcommon',1,true) or url:find('^javascript') or url:find('^#') or url:find('MS-ITS:',1,true) then return fmt:format(q,url,q,pre,content) end
+            local pre1=pre:gsub([[%s+target=(['"]).-%1]],''):gsub([[onclick=(['"]).-%1]],''):gsub([[onload=(['"]).-%1]],'')
+            if url:find('^http') or url:find('^www') then return fmt:format(q,url,q,pre1..' target='..q..'_blank'..q,content) end
+            if not self.is_javadoc then pre=pre1 end
+            url=url:gsub('%?[^#]+','')
+            if level>0 then url=url:gsub('^'..prefix,'') end
+            local s,e=url:match('^(.-)([^\\/]+%.[^\\/]+)$')
+            --if not s then print(url) end
+            if s=='' or not s then return fmt:format(q,url,q,pre,content) end
+            subs[#subs]=nil
+            for i=1,#self.dirs do subs[i]=self.dirs[i] end
+            while s:find('^%.%.[\\/]') do
+                subs[#subs]=nil
+                s=s:sub(4)
+            end
+            subs[#subs+1]=s
+            s=table.concat(subs,'/'):gsub('\\','/')
+            if s:find('%.pdf$') then 
+                return fmt:format(q,[[javascript:location.href='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..e..".chm'",pre1,'CHM')
+            elseif s:find('^index.html?$') then
+                return fmt:format(q,'MS-ITS:index.chm::/index.htm',q,pre,content)
+            elseif #subs>#self.dirs and #self.dirs>0 then 
+                return fmt:format(q,url,q,pre,content)
+            else --one known issue is cannot support xxx.chm:/xxx/sub/file.htm
+                return fmt:format(q,'MS-ITS:'..s:gsub("/",".").."chm::/"..s..e,q,pre,content)
+            end
+        end)
+
     if self.is_javadoc then
         txt=txt:gsub('(<script)(.-)(</script>)',function(a,b,c)
             return a..b:gsub('&lt;','>'):gsub('&amp;','&'):gsub('&gt;','<')..c
@@ -699,7 +734,7 @@ function builder:processHTML(file,level)
 
     local count=0
     self.topic=self.topic or ""
-    self.dirs=self.dirs or {}
+    
     local dcommon_path=string.rep('../',level+#self.dirs)..'dcommon'
     local header=[[<table summary="" cellspacing="0" cellpadding="0" style="width:100%%">
         <tr>
@@ -737,41 +772,13 @@ function builder:processHTML(file,level)
                 </tr></table>]]):format(left,dcommon_path,dcommon_path,copy,right,dcommon_path)
     end)
     txt=txt:gsub([[(%s*<script.-<%/script>%s*)]],'')
-    txt=txt:gsub('%s*<a href="#BEGIN".-</a>%s*','')
     txt=txt:gsub('(<[^>]*) onload=".-"','%1')
-    txt=txt:gsub([[(<a [^>]*)onclick=(["'"]).-%2]],'%1')
-    txt=txt:gsub([[(<a [^>]*)target=(["'"]).-%2]],'%1')
     if count>0 then
         txt=txt:gsub('(<div class="IND .->)','%1'..header,1)
     end
-    
-    txt=txt:gsub('href="'..prefix..'[%./\\]+([^"]+)%.pdf"([^>]*)>PDF<',function(s,d)
-        return [[href="javascript:location.href='file:///'+location.href.match(/\:((\w\:)?[^:]+[\\/])[^:\\/]+\:/)[1]+']]..s:gsub("/",".")..[[.chm'"]]..d..'>CHM<'
-    end)
-
-    txt=txt:gsub([[(["'])]]..prefix..'%.%.[%.\\/]*index%.html?%1','%1MS-ITS:index.chm::/index.htm%1')
-    local subs={}
-    
-    txt=txt:gsub('"('..prefix..'[^"]-)([^"\\/]+%.html?[^%s"\\/]*)"',function(s,e)
-        if (#self.dirs>0 and not s:find('^%.%.[\\/]')) or s:find('^http') or s:find('MS-ITS:',1,true) or e:find('.css',1,true) or e:find('.js',1,true) or s:find('dcommon') then return '"'..s..e..'"' end
-        local t=s:gsub('^'..prefix,'')
-        if t=='' then return '"'..s..e..'"' end
-        subs[#subs]=nil
-        for i=1,#self.dirs do subs[i]=self.dirs[i] end
-        while t:find('^%.%.[\\/]') do
-            subs[#subs]=nil
-            t=t:sub(4)
-        end
-        subs[#subs+1]=t
-        t=table.concat(subs,'/')
-        --print(s,e,t,'"MS-ITS:'..t:gsub("/",".").."chm::/"..t..e..'"')
-        e=e:gsub('(html?)%?[^#]+','%1')
-        return '"MS-ITS:'..t:gsub("/",".").."chm::/"..t..e..'"'
-    end)
-
 
     if self.name and self.name:lower()=="nav" and (file:find('sql_keywords',1,true) or file:find('catalog_views',1,true)) then
-        for _,span in ipairs(html.parse(txt,1000000):select("span")) do
+        for _,span in ipairs(html.parse(txt):select("span")) do
             local b,a=span.nodes[1],span.nodes[2]
             if a and b.name=='b' and a.name=='a' and (a.attributes.href or ""):find('MS-ITS',1,true) then
                 local index_name=b:getcontent():gsub('[:%s]+$','')
@@ -781,8 +788,7 @@ function builder:processHTML(file,level)
             end
         end
     end
-    local q1,q2='"',"'"
-    txt=txt:gsub('((<a [^<>]*href=)([\'"])(http[^\'"]+)[\'"])','%1 target="_blank"')
+
     if not txt then print("file",file,"miss matched!") end
     self.save(file,txt)
 end
@@ -887,7 +893,7 @@ function builder.BuildAll(parallel)
     end
     table.insert(tasks[#tasks],'"'..chm_builder..'" "'..target_doc_root..'index.hhp"')
     for i=1,#tasks do
-        builder.save(i..".bat",table.concat(tasks[i],"\n")..'\n')
+        builder.save(i..".bat",table.concat(tasks[i],"\n")..'\nexit\n')
         if i<=parallel then
             os.execute('start "Compiling CHMS '..i..'" '..i..'.bat')
         end
@@ -1019,17 +1025,15 @@ end
 
 function builder.scanInvalidLinks()
     local max_books=3
-    local f=io.popen('dir /s/b "'..source_doc_root..'*errorlog.txt"')
+    local f=io.popen('dir /s/b "'..target_doc_root..'*errorlog.txt"')
     for file in f:lines() do
         local filelist={}
         local txt,err=builder.read(file)
         if txt then
-            for book in txt:gmatch('[\n\r]([%w%.]+)\\%w') do
-                if not filelist[book] then
-                    filelist[book],filelist[#filelist+1]=book,book
-                end
-                if #filelist>max_books then
-                    print('Detected book '..book..' may contains invalid links: '..table.concat(filelist,','))
+            local book=txt:match("[\\/]([^\\/]+)%.chm")
+            for link in txt:gmatch('[\n\r](%S+\\%S+)') do
+                if not link:match(book) and not link:find('nav\\',1,true) and not link:find('dcommon\\') then
+                    print('Detected link '..link..' on book: '..book)
                 end
             end
         else
